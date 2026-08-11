@@ -1,0 +1,44 @@
+{
+  "name": "rflx-ai",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "mock-agent": "tsx --env-file=.env.local scripts/mock-agent/run.ts",
+    "eval": "tsx --env-file=.env.local eval/run.ts",
+    "eval:gen-benign": "tsx --env-file=.env.local eval/generate-benign-cases.ts",
+    "eval:gen-injection": "tsx --env-file=.env.local eval/generate-injection-cases.ts"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@supabase/ssr": "^0.5.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "server-only": "^0.0.1",
+    "openai": "^4.68.0",
+    "zod": "^3.23.0",
+    "recharts": "^2.13.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-trace-node": "^1.27.0",
+    "@opentelemetry/sdk-trace-base": "^1.27.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.54.0",
+    "@opentelemetry/resources": "^1.27.0",
+    "@opentelemetry/semantic-conventions": "^1.27.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.0.0",
+    "tsx": "^4.19.0"
+  }
+}

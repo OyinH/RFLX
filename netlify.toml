@@ -1,0 +1,19 @@
+# rflx.ai — Netlify deploy config. Single Next.js app (API routes + UI),
+# one deploy target (CLAUDE.md's "single Next.js app, single deploy"
+# non-negotiable) — no separate backend runtime to configure here.
+#
+# No `publish` directory is set deliberately: @netlify/plugin-nextjs owns
+# the build output routing (App Router, Route Handlers, middleware.ts) —
+# hand-setting `publish` fights the plugin rather than helping it.
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  # Matches this project's actual dev/build environment (node --version).
+  # Next.js 15 needs 18.18+; pinned rather than left to Netlify's default
+  # so a future default bump can't silently change build behavior.
+  NODE_VERSION = "24"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

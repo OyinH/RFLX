@@ -1,0 +1,27 @@
+flowchart TD
+    A["Mock Clinical Agent<br/>(OpenAI-generated action proposals<br/>over Synthea synthetic patients)"] -->|"POST /api/agent/action-request"| GW
+
+    subgraph GW["rflx Gateway (Next.js API Routes)"]
+        direction TB
+        L1["Layer 1: Injection Pre-Screen<br/>Azure AI Content Safety — Prompt Shield"]
+        L2["Layer 2: Bounded Agentic Investigator<br/>OpenAI GPT-5.6 Terra<br/>(1 agentic tool, capped at 5 calls)"]
+        CTX["Eager Context (not agentic)<br/>get_patient_current_medications → Synthea record<br/>— fetched upfront, not a model-requested call (v3 latency fix)"]
+        TOOLS["Agentic Tool (read-only)<br/>lookup_drug_label → openFDA"]
+        PE["Policy Engine<br/>deterministic rule table<br/>— the fixed point; no model reasoning here"]
+        L1 --> L2
+        CTX -->|"patient_current_medications"| L2
+        L2 <-->|"bounded tool calls"| TOOLS
+        L2 -->|"risk_tier + reasoning + evidence_sources"| PE
+    end
+
+    PE -->|auto_approve| PROCEED["Action Proceeds"]
+    PE -->|escalate| RQ["Review Queue<br/>(Next.js + Netlify)"]
+    PE -->|block| REJECT["Action Rejected"]
+
+    PROCEED --> DB[("Supabase Postgres<br/>agent_actions · risk_classifications<br/>incidents · review_decisions")]
+    RQ --> DB
+    REJECT --> DB
+    RQ -->|"reviewer decision"| DB
+
+    DB --> DASH["Incident Dashboard<br/>(Next.js + Netlify)"]
+    GW -.->|"OpenTelemetry spans"| FOUNDRY[("Microsoft Foundry<br/>Tracing · Evaluation · Monitoring")]

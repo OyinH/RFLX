@@ -1,0 +1,46 @@
+sequenceDiagram
+    participant Agent as Mock Clinical Agent
+    participant GW as Gateway API<br/>(app/api/agent/action-request)
+    participant PS as Prompt Shield<br/>(Azure AI Content Safety)
+    participant Inv as Investigator<br/>(bounded, ≤5 tool calls)
+    participant FDA as openFDA<br/>(lookup_drug_label)
+    participant Meds as Synthea Meds<br/>(get_patient_current_medications)
+    participant PE as Policy Engine<br/>(deterministic rule table)
+    participant DB as Supabase Postgres
+    participant Foundry as Microsoft Foundry<br/>(OTel spans)
+    participant RQ as Review Queue UI
+    participant Rev as Reviewer
+
+    Agent->>GW: POST /api/agent/action-request<br/>{agent_id, action_type, payload, context}
+    GW->>GW: validate request against schema<br/>(reject 400 if malformed)
+
+    GW->>PS: screen payload content
+    PS-->>GW: injection_flag
+    GW-->>Foundry: span: Prompt Shield call
+
+    Inv->>Meds: get_patient_current_medications(patient_context_id)<br/>[eager — not agentic, v3 latency fix]
+    Meds-->>Inv: medications list
+    GW->>Inv: payload + injection_flag + patient_current_medications
+    loop up to 5 lookup_drug_label calls
+        Inv->>FDA: lookup_drug_label(drug_name)
+        FDA-->>Inv: contraindications, warnings, boxed_warning, interactions
+        Inv-->>Foundry: span: investigator tool call
+    end
+    Inv-->>GW: risk_tier, reasoning, evidence_sources
+    GW-->>Foundry: span: investigator final output
+
+    GW->>PE: risk_tier + injection_flag
+    PE-->>GW: decision (auto_approve | escalate | block)
+    GW-->>Foundry: span: policy engine decision
+
+    GW->>DB: insert agent_actions, risk_classifications, incidents<br/>(append-only)
+    GW-->>Agent: response {decision, risk_tier, reasoning,<br/>evidence_sources, incident_id, latency_ms, token_cost}
+
+    opt decision == escalate
+        DB->>RQ: incident surfaces (decision = 'escalate')
+        Rev->>RQ: reviews payload, risk tier, reasoning
+        Rev->>RQ: approve / reject
+        RQ->>DB: insert review_decisions<br/>(append-only)
+    end
+
+    Note over GW,PE: Any timeout, error, or low-confidence result<br/>at Prompt Shield, Investigator, or Policy Engine<br/>routes to escalate — fail closed, never auto_approve.
