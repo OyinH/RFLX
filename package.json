@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "mock-agent": "tsx --env-file=.env.local scripts/mock-agent/run.ts",
+    "load-synthea": "tsx --env-file=.env.local scripts/load-synthea/run.ts",
     "eval": "tsx --env-file=.env.local eval/run.ts",
     "eval:gen-benign": "tsx --env-file=.env.local eval/generate-benign-cases.ts",
     "eval:gen-injection": "tsx --env-file=.env.local eval/generate-injection-cases.ts"

@@ -9,6 +9,12 @@ out/
 .env
 .env.local
 .env.*.local
+.supabase-token
+.supabase-db-password
+.netlify-token
+
+# Supabase CLI local link state — machine-specific, not app config
+supabase/.temp
 
 # Logs
 npm-debug.log*
