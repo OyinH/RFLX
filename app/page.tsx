@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const riskTiers = [
   { label: "LOW", className: "bg-risk-low" },
   { label: "MEDIUM", className: "bg-risk-medium" },
@@ -39,6 +41,27 @@ export default function Home() {
         </header>
 
         <section className="rounded-lg border border-border bg-surface p-6">
+          <h2 className="text-lg font-medium text-text-primary">Get started</h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Escalated actions awaiting review, and aggregate incident trends.
+          </p>
+          <div className="mt-3 flex gap-3">
+            <Link
+              href="/review-queue"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
+            >
+              Open Review Queue
+            </Link>
+            <Link
+              href="/dashboard"
+              className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-bg"
+            >
+              Open Dashboard
+            </Link>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-surface p-6">
           <h2 className="text-lg font-medium text-text-primary">Risk tier</h2>
           <div className="mt-3 flex gap-3">
             {riskTiers.map((tier) => (
@@ -76,13 +99,6 @@ export default function Home() {
             ))}
           </div>
         </section>
-
-        <button
-          type="button"
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
-        >
-          Primary action
-        </button>
       </div>
     </main>
   );
