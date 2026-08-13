@@ -5,6 +5,7 @@ import type { ResponseInputItem, Tool, ToolChoiceFunction } from "openai/resourc
 import { getOpenAIClient } from "@/lib/openai/client";
 import { getTracer } from "@/lib/observability/tracer";
 import { getErrorMessage } from "@/lib/errors";
+import { withHardTimeout } from "@/lib/timeout";
 import type { ActionType, EvidenceSource, RiskTier, SourceChannel } from "@/lib/supabase/types";
 import {
   lookupDrugLabel,
@@ -64,28 +65,9 @@ const MAX_TURNS = MAX_TOOL_CALLS + 3;
 const LOW_CONFIDENCE_FALLBACK = 0.3;
 
 // Defense-in-depth, independent of the OpenAI client's own `timeout` option
-// (lib/openai/client.ts) — verified live that the client-level timeout alone
-// is not a reliable hard ceiling: two eval runs each had one request stall
-// for 11-12 minutes with zero error/retry signal in the logs, well past the
-// client's 20s setting, suggesting a hang below the SDK's own abort handling
-// (e.g. DNS/connection-establishment) that its timeout doesn't reliably
-// cover. This uses a plain JS timer with no dependency on the SDK's network
-// internals, so it fires regardless of where in the stack the stall is.
+// (lib/openai/client.ts) — see lib/timeout.ts for the full history of why
+// this exists and why it's no longer scoped to just this file.
 const HARD_CALL_TIMEOUT_MS = 25_000;
-
-class HardTimeoutError extends Error {}
-
-function withHardTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) => {
-      setTimeout(
-        () => reject(new HardTimeoutError(`${label} exceeded hard timeout of ${HARD_CALL_TIMEOUT_MS}ms`)),
-        HARD_CALL_TIMEOUT_MS,
-      );
-    }),
-  ]);
-}
 
 let cachedSystemPrompt: string | undefined;
 
@@ -221,7 +203,7 @@ export async function investigate(input: InvestigationInput): Promise<Investigat
   // is itself treated as evidence, not a crash (specs/04's Edge Cases).
   const currentMedications = await tracer.startActiveSpan("investigator.eager_medications_lookup", async (span) => {
     try {
-      const result = await withHardTimeout(input.currentMedications, "eager medications lookup");
+      const result = await withHardTimeout(input.currentMedications, "eager medications lookup", HARD_CALL_TIMEOUT_MS);
       const finding = summarizeMedicationsFinding(result);
       evidenceSources.push({
         tool: "get_patient_current_medications",
@@ -270,6 +252,7 @@ export async function investigate(input: InvestigationInput): Promise<Investigat
           reasoning: { effort: REASONING_EFFORT },
         }),
         `investigator turn ${turn + 1}`,
+        HARD_CALL_TIMEOUT_MS,
       );
     } catch (err) {
       // Preserve whatever evidence earlier turns already gathered rather than
@@ -383,7 +366,7 @@ async function runInvestigativeTool(
       }
 
       const drugName = typeof args.drug_name === "string" ? args.drug_name : "";
-      const result = await withHardTimeout(lookupDrugLabel(drugName), `lookup_drug_label(${drugName})`);
+      const result = await withHardTimeout(lookupDrugLabel(drugName), `lookup_drug_label(${drugName})`, HARD_CALL_TIMEOUT_MS);
       const finding = summarizeDrugLabelFinding(drugName, result);
       evidenceSources.push({ tool: "lookup_drug_label", query: drugName, finding });
       span.setAttributes({ "rflx.tool.query": drugName, "rflx.tool.found": result.found });

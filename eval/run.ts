@@ -76,6 +76,12 @@ function loadAndValidateCases(): EvalCase[] {
   return cases;
 }
 
+// Generous relative to the ~13s P95 target (specs/03-gateway-api.md), but
+// far short of the ~10 minutes a genuine stall previously took to surface —
+// without this, a single hung request makes the whole suite wait
+// indefinitely instead of failing that one case fast and moving on.
+const CASE_FETCH_TIMEOUT_MS = 60_000;
+
 async function runCase(baseUrl: string, evalCase: EvalCase): Promise<CaseResult> {
   const startedAt = Date.now();
   try {
@@ -83,6 +89,7 @@ async function runCase(baseUrl: string, evalCase: EvalCase): Promise<CaseResult>
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(evalCase.request),
+      signal: AbortSignal.timeout(CASE_FETCH_TIMEOUT_MS),
     });
     const latency_ms = Date.now() - startedAt;
 

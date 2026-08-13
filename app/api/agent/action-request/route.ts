@@ -7,6 +7,7 @@ import { screenForInjection } from "@/lib/prompt-shield";
 import { getTracer } from "@/lib/observability/tracer";
 import { getPatientById, recordDecision } from "@/lib/supabase/queries";
 import { getErrorMessage } from "@/lib/errors";
+import { withHardTimeout } from "@/lib/timeout";
 
 /**
  * Gateway API — specs/03-gateway-api.md. Ties Prompt Shield, the investigator,
@@ -23,6 +24,13 @@ const INPUT_TOKEN_COST_USD = 0.000003;
 const OUTPUT_TOKEN_COST_USD = 0.000015;
 
 const LOW_CONFIDENCE_THRESHOLD = 0.6; // specs/04-investigator.md's Low-Confidence Threshold
+
+// lib/timeout.ts — Supabase calls here had no timeout at all until an eval
+// run reproduced the same silent-stall symptom the investigator's own calls
+// were already protected against, on a request whose investigator step
+// completed normally. 10s is generous for what's normally a sub-second
+// query, well short of the minutes a genuine stall would otherwise take.
+const SUPABASE_CALL_TIMEOUT_MS = 10_000;
 
 const ACTION_TYPES = [
   "draft_note",
@@ -103,7 +111,12 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   let patientExists: boolean;
   try {
-    patientExists = (await getPatientById(body.payload.patient_context_id)) !== null;
+    patientExists =
+      (await withHardTimeout(
+        getPatientById(body.payload.patient_context_id),
+        "getPatientById",
+        SUPABASE_CALL_TIMEOUT_MS,
+      )) !== null;
   } catch (err) {
     return NextResponse.json(
       { error: "validation_failed", message: getErrorMessage(err) },
@@ -207,22 +220,26 @@ export async function POST(request: Request): Promise<NextResponse> {
       // a decision that isn't durably logged must never be reported as if it were.
       let recordResult: { action_id: string; incident_id: string };
       try {
-        recordResult = await recordDecision({
-          agent_id: body.agent_id,
-          action_type: body.action_type,
-          payload: body.payload,
-          source_channel: body.payload.source_channel,
-          risk_tier: riskTier,
-          injection_flag: injectionFlag,
-          confidence,
-          reasoning,
-          evidence_sources: evidenceSources,
-          input_tokens: inputTokens,
-          output_tokens: outputTokens,
-          estimated_cost_usd: estimatedCostUsd,
-          decision,
-          latency_ms: latencyMs,
-        });
+        recordResult = await withHardTimeout(
+          recordDecision({
+            agent_id: body.agent_id,
+            action_type: body.action_type,
+            payload: body.payload,
+            source_channel: body.payload.source_channel,
+            risk_tier: riskTier,
+            injection_flag: injectionFlag,
+            confidence,
+            reasoning,
+            evidence_sources: evidenceSources,
+            input_tokens: inputTokens,
+            output_tokens: outputTokens,
+            estimated_cost_usd: estimatedCostUsd,
+            decision,
+            latency_ms: latencyMs,
+          }),
+          "recordDecision",
+          SUPABASE_CALL_TIMEOUT_MS,
+        );
       } catch (err) {
         rootSpan.recordException(err instanceof Error ? err : new Error(getErrorMessage(err)));
         return NextResponse.json(
