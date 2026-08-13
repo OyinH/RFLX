@@ -1,34 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { EscalatedIncident } from "@/lib/supabase/queries";
-import type { ClassificationAgreement, ReasonCode, RiskTier } from "@/lib/supabase/types";
+import type { IncidentDetail } from "@/lib/supabase/queries";
+import type { ClassificationAgreement, ReasonCode } from "@/lib/supabase/types";
+import { RISK_TIER_CLASS, RISK_BORDER_CLASS, formatActionType, contentOf } from "@/lib/ui/incident-display";
 import { submitReview } from "./actions";
-
-const RISK_TIER_CLASS: Record<RiskTier, string> = {
-  LOW: "bg-risk-low",
-  MEDIUM: "bg-risk-medium",
-  HIGH: "bg-risk-high",
-  CRITICAL: "bg-risk-critical",
-};
-
-// Left accent stripe on each row — scannable at a glance before even
-// reading the badge text, same pattern as most incident-queue tools
-// (Sentry, PagerDuty). docs/design.md's review-queue principle: "prioritize
-// scan-ability... over whitespace."
-const RISK_BORDER_CLASS: Record<RiskTier, string> = {
-  LOW: "border-risk-low",
-  MEDIUM: "border-risk-medium",
-  HIGH: "border-risk-high",
-  CRITICAL: "border-risk-critical",
-};
-
-function formatActionType(actionType: string): string {
-  return actionType
-    .split("_")
-    .map((word) => word[0].toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 // Reviewer-outcome calibration log (docs/rflx_PRD.md §6.1) — capture-only,
 // required at the UI layer though the schema column is nullable (specs/01).
@@ -46,11 +22,7 @@ const REASON_OPTIONS: { value: ReasonCode; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-function contentOf(payload: Record<string, unknown>): string {
-  return typeof payload.content === "string" ? payload.content : JSON.stringify(payload);
-}
-
-export function IncidentRow({ incident }: { incident: EscalatedIncident }) {
+export function IncidentRow({ incident }: { incident: IncidentDetail }) {
   const [expanded, setExpanded] = useState(false);
   const [reviewerId, setReviewerId] = useState("");
   const [notes, setNotes] = useState("");

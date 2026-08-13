@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   Bar,
   BarChart,
@@ -40,21 +41,52 @@ const DECISION_LABEL: Record<Decision, string> = {
   block: "Block",
 };
 
+// escalate goes to the review queue (the work-in-progress view); the two
+// terminal decisions go to the read-only incident log, deep-linked to the
+// matching tab (app/incidents).
+const DECISION_HREF: Record<Decision, string> = {
+  auto_approve: "/incidents?decision=auto_approve",
+  escalate: "/review-queue",
+  block: "/incidents?decision=block",
+};
+
 function formatRate(count: number, total: number): string {
   if (total === 0) return "—";
   return `${((count / total) * 100).toFixed(1)}%`;
 }
 
-function StatTile({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-surface p-6">
+function StatTile({
+  label,
+  value,
+  sub,
+  color,
+  href,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+  href?: string;
+}) {
+  const content = (
+    <>
       <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">{label}</p>
       <p className="mt-2 text-2xl font-semibold" style={color ? { color } : undefined}>
         {value}
       </p>
       {sub && <p className="mt-1 text-xs text-text-secondary">{sub}</p>}
-    </div>
+    </>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="rounded-lg border border-border bg-surface p-6 transition-colors hover:bg-bg">
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className="rounded-lg border border-border bg-surface p-6">{content}</div>;
 }
 
 export function DashboardClient({ initialData }: { initialData: DashboardData }) {
@@ -145,6 +177,7 @@ export function DashboardClient({ initialData }: { initialData: DashboardData })
                 value={String(data.counts[decision])}
                 sub={formatRate(data.counts[decision], total)}
                 color={DECISION_COLOR[decision]}
+                href={DECISION_HREF[decision]}
               />
             ))}
           </div>

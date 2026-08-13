@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { IncidentDetail } from "@/lib/supabase/queries";
 import type { RiskTier } from "@/lib/supabase/types";
-import { IncidentRow } from "./IncidentRow";
+import { IncidentLogRow } from "./IncidentLogRow";
 
 const RISK_ORDER: Record<RiskTier, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
 const RISK_TIER_OPTIONS: (RiskTier | "all")[] = ["all", "LOW", "MEDIUM", "HIGH", "CRITICAL"];
@@ -12,16 +12,22 @@ type SortKey = "created_at" | "risk_tier";
 type SortDir = "asc" | "desc";
 
 /**
- * docs/design.md's Tables convention: "sortable, filterable by default for
- * the Review Queue and Dashboard." Data fetching stays server-side
- * (specs/05); this wraps the already-fetched list with client-side
- * filter/sort, proportionate to MVP row counts.
+ * Read-only counterpart to app/review-queue/ReviewQueueTable.tsx — same
+ * client-side filter/sort convention (docs/design.md's Tables convention),
+ * different empty-state copy per decision type since "no actions awaiting
+ * review" doesn't make sense for an already-decided log.
  */
-export function ReviewQueueTable({ incidents }: { incidents: IncidentDetail[] }) {
+export function IncidentLogTable({
+  incidents,
+  emptyLabel,
+}: {
+  incidents: IncidentDetail[];
+  emptyLabel: string;
+}) {
   const [riskFilter, setRiskFilter] = useState<RiskTier | "all">("all");
   const [injectionFilter, setInjectionFilter] = useState<"all" | "flagged" | "clear">("all");
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const visible = useMemo(() => {
     let rows = incidents;
@@ -55,7 +61,7 @@ export function ReviewQueueTable({ incidents }: { incidents: IncidentDetail[] })
   if (incidents.length === 0) {
     return (
       <div className="mt-6 rounded-lg border border-border bg-surface p-8 text-center">
-        <p className="text-sm text-text-secondary">No actions awaiting review.</p>
+        <p className="text-sm text-text-secondary">{emptyLabel}</p>
       </div>
     );
   }
@@ -117,7 +123,7 @@ export function ReviewQueueTable({ incidents }: { incidents: IncidentDetail[] })
       ) : (
         <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
           {visible.map((incident) => (
-            <IncidentRow key={incident.id} incident={incident} />
+            <IncidentLogRow key={incident.id} incident={incident} />
           ))}
         </div>
       )}

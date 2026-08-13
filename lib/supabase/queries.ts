@@ -16,26 +16,53 @@ import type {
   SyntheaPatient,
 } from "./types";
 
-export type EscalatedIncident = Incident & {
+export type IncidentDetail = Incident & {
   risk_classification: RiskClassification;
   agent_action: AgentAction;
 };
 
-export type EscalatedIncidentsPage = {
-  incidents: EscalatedIncident[];
+export type IncidentDetailPage = {
+  incidents: IncidentDetail[];
   totalCount: number;
 };
 
-// Unpaginated, this view rendered every pending incident's full reasoning
-// text on one page — fine at MVP row counts, not at hundreds-and-growing
-// (verified live: 500+ pending incidents produced a multi-megabyte page).
-export const REVIEW_QUEUE_PAGE_SIZE = 25;
+// Shared by the review queue and the read-only incident log (app/incidents) —
+// unpaginated, either view would render every matching incident's full
+// reasoning text on one page (verified live: 500+ pending incidents produced
+// a multi-megabyte page).
+export const INCIDENT_LIST_PAGE_SIZE = 25;
+
+function mapRowToIncidentDetail(row: {
+  id: string;
+  agent_id: string;
+  action_type: ActionType;
+  payload: Record<string, unknown>;
+  source_channel: SourceChannel;
+  created_at: string;
+  incident: Incident | Incident[] | null;
+  risk_classification: RiskClassification | RiskClassification[] | null;
+}): IncidentDetail {
+  const agentAction: AgentAction = {
+    id: row.id,
+    agent_id: row.agent_id,
+    action_type: row.action_type,
+    payload: row.payload,
+    source_channel: row.source_channel,
+    created_at: row.created_at,
+  };
+  const incident = normalizeOne<Incident>(row.incident);
+  const riskClassification = normalizeOne<RiskClassification>(row.risk_classification);
+  if (!incident || !riskClassification) {
+    throw new Error(`agent_action ${row.id} is missing its incident or risk_classification row — data integrity issue.`);
+  }
+  return { ...incident, risk_classification: riskClassification, agent_action: agentAction };
+}
 
 /**
- * Review queue read — specs/05-review-queue-ui.md. Incidents awaiting a
- * decision, joined with exactly the evidence a reviewer needs (payload,
- * risk classification, reasoning). Scoped on purpose: this view never needs
- * a generic client with broader table access.
+ * Shared by getEscalatedIncidents (specs/05-review-queue-ui.md) and
+ * getIncidentsByDecision (the read-only incident log, app/incidents) — same
+ * join, same pagination-before-range-error handling, different decision
+ * filter and (for escalate only) the reviewed-incident exclusion.
  *
  * Queries FROM agent_actions, not incidents — PostgREST embeds via foreign
  * keys, and `incidents`/`risk_classifications` have no FK to each other
@@ -46,29 +73,29 @@ export const REVIEW_QUEUE_PAGE_SIZE = 25;
  * genuinely 1:1 with agent_actions, but without a unique constraint on
  * their action_id columns PostgREST can't prove that and may return the
  * reverse-relationship embed as a single-element array rather than an
- * object — normalizeOne() below handles either shape defensively so this
- * works before and after that constraint is added (database.sql's
+ * object — normalizeOne() handles either shape defensively so this works
+ * before and after that constraint is added (database.sql's
  * ux_risk_classifications_action_id / ux_incidents_action_id).
- *
- * Excludes incidents that already have a review_decisions row — otherwise a
- * reviewed incident stays visible in the queue forever (specs/05's Edge Cases).
  *
  * `page` is 1-indexed. `totalCount` reflects the full filtered set (via
  * PostgREST's exact count), not just the returned page, so callers can
- * render "N pending" and compute total pages.
+ * render "N pending"/"N total" and compute total pages.
  */
-export async function getEscalatedIncidents(
-  page = 1,
-  pageSize: number = REVIEW_QUEUE_PAGE_SIZE,
-): Promise<EscalatedIncidentsPage> {
+async function fetchIncidentsByDecision(
+  decision: Decision,
+  options: { excludeReviewed: boolean; ascending: boolean },
+  page: number,
+  pageSize: number,
+): Promise<IncidentDetailPage> {
   const supabase = createServiceRoleClient();
 
-  const { data: decided, error: decidedError } = await supabase
-    .from("review_decisions")
-    .select("incident_id");
-  if (decidedError) throw decidedError;
-  const decidedIncidentIds = (decided ?? []).map((row) => row.incident_id);
-  const notDecidedFilter = decidedIncidentIds.length > 0 ? `(${decidedIncidentIds.join(",")})` : null;
+  let notDecidedFilter: string | null = null;
+  if (options.excludeReviewed) {
+    const { data: decided, error: decidedError } = await supabase.from("review_decisions").select("incident_id");
+    if (decidedError) throw decidedError;
+    const decidedIncidentIds = (decided ?? []).map((row) => row.incident_id);
+    notDecidedFilter = decidedIncidentIds.length > 0 ? `(${decidedIncidentIds.join(",")})` : null;
+  }
 
   // Count first, head-only (no rows returned) — .range() below throws
   // "Requested range not satisfiable" if its start offset is past the last
@@ -78,7 +105,7 @@ export async function getEscalatedIncidents(
   let countQuery = supabase
     .from("agent_actions")
     .select("*, incident:incidents!inner(*)", { count: "exact", head: true })
-    .eq("incident.decision", "escalate");
+    .eq("incident.decision", decision);
   if (notDecidedFilter) countQuery = countQuery.not("incident.id", "in", notDecidedFilter);
   const { count, error: countError } = await countQuery;
   if (countError) throw countError;
@@ -92,31 +119,41 @@ export async function getEscalatedIncidents(
   let query = supabase
     .from("agent_actions")
     .select("*, incident:incidents!inner(*), risk_classification:risk_classifications(*)")
-    .eq("incident.decision", "escalate")
-    .order("created_at", { ascending: true });
+    .eq("incident.decision", decision)
+    .order("created_at", { ascending: options.ascending });
   if (notDecidedFilter) query = query.not("incident.id", "in", notDecidedFilter);
 
   const { data, error } = await query.range(from, from + pageSize - 1);
   if (error) throw error;
 
-  const incidents = (data ?? []).map((row) => {
-    const agentAction: AgentAction = {
-      id: row.id,
-      agent_id: row.agent_id,
-      action_type: row.action_type,
-      payload: row.payload,
-      source_channel: row.source_channel,
-      created_at: row.created_at,
-    };
-    const incident = normalizeOne<Incident>(row.incident);
-    const riskClassification = normalizeOne<RiskClassification>(row.risk_classification);
-    if (!incident || !riskClassification) {
-      throw new Error(`agent_action ${row.id} is missing its incident or risk_classification row — data integrity issue.`);
-    }
-    return { ...incident, risk_classification: riskClassification, agent_action: agentAction };
-  });
+  return { incidents: (data ?? []).map(mapRowToIncidentDetail), totalCount };
+}
 
-  return { incidents, totalCount };
+/**
+ * Review queue read — specs/05-review-queue-ui.md. Incidents awaiting a
+ * decision, oldest first, excluding ones that already have a review_decisions
+ * row — otherwise a reviewed incident stays visible in the queue forever
+ * (specs/05's Edge Cases).
+ */
+export async function getEscalatedIncidents(
+  page = 1,
+  pageSize: number = INCIDENT_LIST_PAGE_SIZE,
+): Promise<IncidentDetailPage> {
+  return fetchIncidentsByDecision("escalate", { excludeReviewed: true, ascending: true }, page, pageSize);
+}
+
+/**
+ * Read-only incident log (app/incidents) — already-terminal decisions
+ * (auto_approve, block) that were never routed to a human reviewer in the
+ * first place, so there's no review_decisions concept to exclude here.
+ * Newest first — this is a history log, not a work queue.
+ */
+export async function getIncidentsByDecision(
+  decision: "auto_approve" | "block",
+  page = 1,
+  pageSize: number = INCIDENT_LIST_PAGE_SIZE,
+): Promise<IncidentDetailPage> {
+  return fetchIncidentsByDecision(decision, { excludeReviewed: false, ascending: false }, page, pageSize);
 }
 
 /** PostgREST returns a to-one embed as an object when it can prove the

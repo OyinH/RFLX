@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 /**
  * Minimal HTTP Basic Auth gate for the reviewer-facing surfaces
- * (/review-queue, /dashboard) — skills/security-foundation/SKILL.md's
+ * (/review-queue, /dashboard, /incidents) — skills/security-foundation/SKILL.md's
  * private-data-access-control check found these pages readable/writable by
  * anyone with the deployed URL: Supabase RLS is bypassed entirely by the
  * service-role client both routes use (lib/supabase/server.ts), and there
@@ -47,5 +47,5 @@ export function middleware(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ["/review-queue/:path*", "/dashboard/:path*"],
+  matcher: ["/review-queue/:path*", "/dashboard/:path*", "/incidents/:path*"],
 };

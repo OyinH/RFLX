@@ -57,6 +57,15 @@ const STAT_LABELS: Record<Decision, string> = {
   block: "Blocked",
 };
 
+// escalate goes to the review queue (the work-in-progress view); the two
+// terminal decisions go to the read-only incident log, deep-linked to the
+// matching tab.
+const STAT_HREF: Record<Decision, string> = {
+  auto_approve: "/incidents?decision=auto_approve",
+  escalate: "/review-queue",
+  block: "/incidents?decision=block",
+};
+
 async function getLiveStats(): Promise<Record<Decision, number> | null> {
   try {
     return await getIncidentCountsByDecision(new Date(0).toISOString(), new Date().toISOString());
@@ -103,10 +112,14 @@ export default async function Home() {
             className="mt-12 grid grid-cols-1 gap-4 rounded-lg border border-border bg-surface p-6 sm:grid-cols-3"
           >
             {(["auto_approve", "escalate", "block"] as const).map((decision) => (
-              <div key={decision} className="text-center sm:border-l sm:border-border sm:first:border-l-0">
+              <Link
+                key={decision}
+                href={STAT_HREF[decision]}
+                className="rounded-md text-center transition-colors hover:bg-bg sm:border-l sm:border-border sm:first:border-l-0"
+              >
                 <p className="text-2xl font-semibold text-text-primary">{stats[decision].toLocaleString()}</p>
                 <p className="mt-1 text-sm text-text-secondary">{STAT_LABELS[decision]}</p>
-              </div>
+              </Link>
             ))}
           </section>
         ) : null}

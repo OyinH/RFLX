@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getEscalatedIncidents, REVIEW_QUEUE_PAGE_SIZE } from "@/lib/supabase/queries";
+import { getEscalatedIncidents, INCIDENT_LIST_PAGE_SIZE } from "@/lib/supabase/queries";
 import { getErrorMessage } from "@/lib/errors";
 import { ReviewQueueTable } from "./ReviewQueueTable";
 import { PaginationControls } from "./PaginationControls";
@@ -36,14 +36,14 @@ export default async function ReviewQueuePage({
   let totalCount = 0;
 
   try {
-    const result = await getEscalatedIncidents(page, REVIEW_QUEUE_PAGE_SIZE);
+    const result = await getEscalatedIncidents(page, INCIDENT_LIST_PAGE_SIZE);
     incidents = result.incidents;
     totalCount = result.totalCount;
   } catch (err) {
     loadError = getErrorMessage(err);
   }
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / REVIEW_QUEUE_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(totalCount / INCIDENT_LIST_PAGE_SIZE));
   // Distinct from a genuinely empty queue (totalCount === 0, which
   // ReviewQueueTable already renders its own "no actions awaiting review"
   // state for) — this is a stale/out-of-range page link, e.g. after enough
