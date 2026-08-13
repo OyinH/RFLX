@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { decide } from "@/lib/policy-engine";
 import { investigate, type EvidenceSource } from "@/lib/investigator";
+import { getPatientCurrentMedications } from "@/lib/investigator/tools";
 import { screenForInjection } from "@/lib/prompt-shield";
 import { getTracer } from "@/lib/observability/tracer";
 import { getPatientById, recordDecision } from "@/lib/supabase/queries";
@@ -124,6 +125,11 @@ export async function POST(request: Request): Promise<NextResponse> {
         "rflx.action_type": body.action_type,
       });
 
+      // Kicked off before Prompt Shield, not awaited yet — only needs
+      // patient_context_id, not injection_flag, so it overlaps with Prompt
+      // Shield instead of waiting behind it (investigate() awaits this below).
+      const currentMedicationsPromise = getPatientCurrentMedications(body.payload.patient_context_id);
+
       // Step 2: Prompt Shield.
       let injectionFlag = false;
       let promptShieldFailed = false;
@@ -154,6 +160,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           action_type: body.action_type,
           payload: body.payload,
           injection_flag: injectionFlag,
+          currentMedications: currentMedicationsPromise,
         });
         riskTier = result.risk_tier;
         reasoning = result.reasoning;

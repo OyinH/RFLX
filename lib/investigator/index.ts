@@ -7,10 +7,10 @@ import { getTracer } from "@/lib/observability/tracer";
 import { getErrorMessage } from "@/lib/errors";
 import type { ActionType, EvidenceSource, RiskTier, SourceChannel } from "@/lib/supabase/types";
 import {
-  getPatientCurrentMedications,
   lookupDrugLabel,
   summarizeDrugLabelFinding,
   summarizeMedicationsFinding,
+  type PatientMedicationsResult,
 } from "./tools";
 
 /**
@@ -122,6 +122,15 @@ export interface InvestigationInput {
     source_channel: SourceChannel;
   };
   injection_flag: boolean;
+  /**
+   * Kicked off by the Gateway API route before/alongside its Prompt Shield
+   * call, not here — get_patient_current_medications only needs
+   * patient_context_id, not injection_flag, so it doesn't need to wait on
+   * Prompt Shield. Caller-supplied rather than fetched internally purely to
+   * let the two run concurrently; the data and its evidence_sources entry
+   * are otherwise identical to the pre-overlap eager-fetch behavior.
+   */
+  currentMedications: Promise<PatientMedicationsResult>;
 }
 
 // Responses API function tools are flat (name/parameters/strict at the top
@@ -212,10 +221,7 @@ export async function investigate(input: InvestigationInput): Promise<Investigat
   // is itself treated as evidence, not a crash (specs/04's Edge Cases).
   const currentMedications = await tracer.startActiveSpan("investigator.eager_medications_lookup", async (span) => {
     try {
-      const result = await withHardTimeout(
-        getPatientCurrentMedications(input.payload.patient_context_id),
-        "eager medications lookup",
-      );
+      const result = await withHardTimeout(input.currentMedications, "eager medications lookup");
       const finding = summarizeMedicationsFinding(result);
       evidenceSources.push({
         tool: "get_patient_current_medications",

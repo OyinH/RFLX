@@ -207,27 +207,33 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Record
     .single();
   if (actionError || !action) throw actionError ?? new Error("agent_actions insert returned no row");
 
-  const { error: riskError } = await supabase.from("risk_classifications").insert({
-    action_id: action.id,
-    risk_tier: input.risk_tier,
-    injection_flag: input.injection_flag,
-    confidence: input.confidence,
-    reasoning: input.reasoning,
-    evidence_sources: input.evidence_sources,
-    input_tokens: input.input_tokens,
-    output_tokens: input.output_tokens,
-    estimated_cost_usd: input.estimated_cost_usd,
-  });
-  if (riskError) throw riskError;
+  // risk_classifications and incidents both only depend on agent_actions.id,
+  // not on each other — run concurrently rather than as a third sequential
+  // round-trip.
+  const [riskResult, incidentResult] = await Promise.all([
+    supabase.from("risk_classifications").insert({
+      action_id: action.id,
+      risk_tier: input.risk_tier,
+      injection_flag: input.injection_flag,
+      confidence: input.confidence,
+      reasoning: input.reasoning,
+      evidence_sources: input.evidence_sources,
+      input_tokens: input.input_tokens,
+      output_tokens: input.output_tokens,
+      estimated_cost_usd: input.estimated_cost_usd,
+    }),
+    supabase
+      .from("incidents")
+      .insert({ action_id: action.id, decision: input.decision, latency_ms: input.latency_ms })
+      .select("id")
+      .single(),
+  ]);
+  if (riskResult.error) throw riskResult.error;
+  if (incidentResult.error || !incidentResult.data) {
+    throw incidentResult.error ?? new Error("incidents insert returned no row");
+  }
 
-  const { data: incident, error: incidentError } = await supabase
-    .from("incidents")
-    .insert({ action_id: action.id, decision: input.decision, latency_ms: input.latency_ms })
-    .select("id")
-    .single();
-  if (incidentError || !incident) throw incidentError ?? new Error("incidents insert returned no row");
-
-  return { action_id: action.id, incident_id: incident.id };
+  return { action_id: action.id, incident_id: incidentResult.data.id };
 }
 
 /**
