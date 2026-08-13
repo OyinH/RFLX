@@ -126,13 +126,20 @@ async function main() {
   const medications = loadMedications(dir, aliveIds);
   console.log(`Parsed ${patients.length} living patients, ${medications.length} medication records.`);
 
-  console.log("Clearing existing reference data (truncate-and-reload)...");
-  const { error: delMedsError } = await supabase.from("synthea_medications").delete().not("id", "is", null);
+  console.log("Clearing existing Synthea-loaded reference data (truncate-and-reload)...");
+  // Scoped to exclude "eval-patient-*" — those rows come from supabase/seed.sql
+  // (specs/08-eval-harness.md's fixed fairness-stratification cells), not this
+  // script, and must survive a reload or every eval case 400s on "patient not
+  // found."
+  const { error: delMedsError } = await supabase
+    .from("synthea_medications")
+    .delete()
+    .not("patient_context_id", "like", "eval-patient-%");
   if (delMedsError) throw delMedsError;
   const { error: delPatientsError } = await supabase
     .from("synthea_patients")
     .delete()
-    .not("patient_context_id", "is", null);
+    .not("patient_context_id", "like", "eval-patient-%");
   if (delPatientsError) throw delPatientsError;
 
   console.log(`Inserting ${patients.length} patients...`);
