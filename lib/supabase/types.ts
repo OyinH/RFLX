@@ -203,6 +203,14 @@ export type Database = {
         Args: { start_ts: string; end_ts: string };
         Returns: { day: string; decision: string; count: number }[];
       };
+      // supabase/migrations/0003_incident_counts_by_decision.sql — used by
+      // getIncidentCountsByDecision (specs/06); replaces an unbounded
+      // client-side count that PostgREST's default max_rows would silently
+      // truncate past 1000 incidents.
+      get_incident_counts_by_decision: {
+        Args: { start_ts: string; end_ts: string };
+        Returns: { decision: string; count: number }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

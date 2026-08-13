@@ -159,26 +159,27 @@ export async function submitReviewDecision(
 
 /**
  * Dashboard read — specs/06-dashboard-ui.md. Read-only aggregate, no writes.
- * `startTs`/`endTs` (ISO8601, both optional) scope the count to a time window —
- * both stat tiles and the time-series chart must share the same window
- * (specs/06's Workflow step 4), so this and getIncidentVolumeByDay below take
- * the same two parameters.
+ * `startTs`/`endTs` (ISO8601) scope the count to a time window — both stat
+ * tiles and the time-series chart must share the same window (specs/06's
+ * Workflow step 4), so this and getIncidentVolumeByDay below take the same
+ * two parameters. Aggregates via the get_incident_counts_by_decision RPC
+ * (supabase/migrations/0003_incident_counts_by_decision.sql) rather than
+ * fetching every matching row and counting client-side — that had no row
+ * limit, and PostgREST's default max_rows (1000 on this project) silently
+ * truncates an unbounded select instead of erroring, so the previous version
+ * would have quietly undercounted past that many incidents.
  */
-export async function getIncidentCountsByDecision(
-  startTs?: string,
-  endTs?: string,
-): Promise<Record<Decision, number>> {
+export async function getIncidentCountsByDecision(startTs: string, endTs: string): Promise<Record<Decision, number>> {
   const supabase = createServiceRoleClient();
-  let query = supabase.from("incidents").select("decision");
-  if (startTs) query = query.gte("created_at", startTs);
-  if (endTs) query = query.lt("created_at", endTs);
-
-  const { data, error } = await query;
+  const { data, error } = await supabase.rpc("get_incident_counts_by_decision", {
+    start_ts: startTs,
+    end_ts: endTs,
+  });
   if (error) throw error;
 
   const counts: Record<Decision, number> = { auto_approve: 0, escalate: 0, block: 0 };
   for (const row of data ?? []) {
-    counts[row.decision as Decision] += 1;
+    counts[row.decision as Decision] = row.count;
   }
   return counts;
 }

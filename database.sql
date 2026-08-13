@@ -200,6 +200,27 @@ $$;
 comment on function get_incident_volume_by_day(timestamptz, timestamptz) is
   'Dashboard time-series aggregate (specs/06-dashboard-ui.md) — buckets incident counts by day and decision in SQL so the query scales with volume instead of shipping every row to the client.';
 
+-- Same fix shape as get_incident_volume_by_day above: the stat-tile counts
+-- were previously computed by fetching every matching `incidents` row
+-- (select "decision" with no limit) and counting client-side in JS —
+-- PostgREST's default max_rows (1000) silently truncates an unbounded
+-- select rather than erroring, so this would have quietly undercounted past
+-- that many incidents with no indication anything was wrong.
+create or replace function get_incident_counts_by_decision(start_ts timestamptz, end_ts timestamptz)
+returns table (decision text, count bigint)
+language sql
+stable
+as $$
+  select decision, count(*) as count
+  from incidents
+  where created_at >= start_ts and created_at < end_ts
+  group by 1
+  order by 1;
+$$;
+
+comment on function get_incident_counts_by_decision(timestamptz, timestamptz) is
+  'Dashboard stat-tile aggregate (specs/06-dashboard-ui.md) — counts incidents by decision in SQL instead of fetching every row and counting client-side, so the query scales with volume rather than being silently truncated by PostgREST''s default max_rows.';
+
 -- ============================================================================
 -- Access control — RLS enabled on every table, no permissive policies by
 -- default. The service-role client (lib/supabase/server.ts, guarded by the
