@@ -28,19 +28,21 @@
 ### Semantic — Risk Tier (`docs/engineering/data-model.md` reference data)
 | Token | Value | risk_tier |
 |---|---|---|
-| `--color-risk-low` | `#16A34A` (green) | LOW |
-| `--color-risk-medium` | `#D97706` (amber) | MEDIUM |
-| `--color-risk-high` | `#EA580C` (orange) | HIGH |
+| `--color-risk-low` | `#15803D` (green) | LOW |
+| `--color-risk-medium` | `#B45309` (amber) | MEDIUM |
+| `--color-risk-high` | `#C2410C` (orange) | HIGH |
 | `--color-risk-critical` | `#DC2626` (red) | CRITICAL |
 
 ### Semantic — Decision
 | Token | Value | decision |
 |---|---|---|
-| `--color-decision-approve` | `#16A34A` (green) | auto_approve |
-| `--color-decision-escalate` | `#D97706` (amber) | escalate |
+| `--color-decision-approve` | `#15803D` (green) | auto_approve |
+| `--color-decision-escalate` | `#B45309` (amber) | escalate |
 | `--color-decision-block` | `#DC2626` (red) | block |
 
 **Rule:** any component displaying a `risk_tier` or `decision` value uses these tokens exclusively — never an ad hoc color chosen per component. This is what `/design-system` checks for on every screen.
+
+**Contrast note (Change Process):** the original green/amber/orange values (`#16A34A`/`#D97706`/`#EA580C`) measured 3.19-3.56:1 contrast against the white text every risk/decision badge uses — below WCAG AA's 4.5:1 minimum for normal-size text (computed via the standard relative-luminance formula, not estimated). Darkened to the values above, each verified at 5.02-5.18:1. `--color-risk-critical`/`--color-decision-block` were already compliant (4.83:1) and are unchanged.
 
 ## Typography
 

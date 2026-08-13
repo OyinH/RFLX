@@ -51,7 +51,7 @@ export default async function ReviewQueuePage({
   const isOutOfRangePage = !loadError && totalCount > 0 && incidents.length === 0;
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12">
+    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12">
       <header>
         <h1 className="text-xl font-semibold text-text-primary">Review Queue</h1>
         <p className="mt-1 text-sm text-text-secondary">

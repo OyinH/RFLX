@@ -15,7 +15,7 @@ export default async function DashboardPage() {
   const initialData = await getDashboardData("all");
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12">
+    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12">
       <header>
         <h1 className="text-xl font-semibold text-text-primary">Dashboard</h1>
         <p className="mt-1 text-sm text-text-secondary">Incident volume and decision breakdown.</p>

@@ -12,6 +12,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="bg-bg text-text-primary antialiased">
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
         <NavBar />
         {children}
       </body>

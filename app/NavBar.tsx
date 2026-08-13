@@ -11,29 +11,37 @@ const LINKS = [
 /**
  * Shared across every page via app/layout.tsx — the only way to move between
  * the landing page, review queue, and dashboard was a manually-typed URL
- * before this existed. Client component (usePathname for the active-link
- * state) but stays a thin leaf — doesn't force the rest of the tree client-side.
+ * before this existed, and there was no visible way back from an internal
+ * page either. Tab-style active state (bottom border, not just a color
+ * swap) so the current page and the way back to "/" are both unmistakable
+ * at a glance, not just technically present. Client component (usePathname
+ * for the active-link state) but stays a thin leaf — doesn't force the rest
+ * of the tree client-side.
  */
 export function NavBar() {
   const pathname = usePathname();
 
   return (
-    <nav className="border-b border-border bg-surface">
-      <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3">
-        <Link href="/" className="text-sm font-semibold text-text-primary">
+    <header className="sticky top-0 z-40 border-b border-border bg-surface shadow-sm">
+      <nav aria-label="Primary" className="mx-auto flex max-w-6xl items-center gap-8 px-6">
+        <Link
+          href="/"
+          className="py-4 text-base font-semibold text-text-primary transition-colors hover:text-primary"
+        >
           rflx.ai
         </Link>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           {LINKS.map((link) => {
             const active = pathname === link.href;
             return (
               <Link
                 key={link.href}
                 href={link.href}
+                aria-current={active ? "page" : undefined}
                 className={
                   active
-                    ? "text-sm font-medium text-primary"
-                    : "text-sm font-medium text-text-secondary hover:text-text-primary"
+                    ? "border-b-2 border-primary py-4 text-sm font-semibold text-primary"
+                    : "border-b-2 border-transparent py-4 text-sm font-medium text-text-secondary transition-colors hover:border-border hover:text-text-primary"
                 }
               >
                 {link.label}
@@ -41,7 +49,7 @@ export function NavBar() {
             );
           })}
         </div>
-      </div>
-    </nav>
+      </nav>
+    </header>
   );
 }
