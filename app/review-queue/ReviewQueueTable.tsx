@@ -115,7 +115,7 @@ export function ReviewQueueTable({ incidents }: { incidents: EscalatedIncident[]
           <p className="text-sm text-text-secondary">No incidents match the current filters.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
           {visible.map((incident) => (
             <IncidentRow key={incident.id} incident={incident} />
           ))}

@@ -12,6 +12,24 @@ const RISK_TIER_CLASS: Record<RiskTier, string> = {
   CRITICAL: "bg-risk-critical",
 };
 
+// Left accent stripe on each row — scannable at a glance before even
+// reading the badge text, same pattern as most incident-queue tools
+// (Sentry, PagerDuty). docs/design.md's review-queue principle: "prioritize
+// scan-ability... over whitespace."
+const RISK_BORDER_CLASS: Record<RiskTier, string> = {
+  LOW: "border-risk-low",
+  MEDIUM: "border-risk-medium",
+  HIGH: "border-risk-high",
+  CRITICAL: "border-risk-critical",
+};
+
+function formatActionType(actionType: string): string {
+  return actionType
+    .split("_")
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 // Reviewer-outcome calibration log (docs/rflx_PRD.md §6.1) — capture-only,
 // required at the UI layer though the schema column is nullable (specs/01).
 const AGREEMENT_OPTIONS: { value: ClassificationAgreement; label: string }[] = [
@@ -64,39 +82,52 @@ export function IncidentRow({ incident }: { incident: EscalatedIncident }) {
 
   if (decided) {
     return (
-      <div className="rounded-lg border border-border bg-surface px-4 py-3">
+      <div className="px-4 py-3">
         <p className="text-sm text-text-secondary">Decision recorded — this incident will leave the queue on refresh.</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface">
+    <div className={`border-l-4 ${RISK_BORDER_CLASS[risk.risk_tier]}`}>
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
-        className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left"
+        className="grid w-full grid-cols-[92px_150px_28px_1fr_180px] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-bg"
       >
-        <div className="flex flex-wrap items-center gap-3">
+        <span
+          className={`inline-flex justify-center rounded-full px-3 py-1 text-xs font-medium text-white ${RISK_TIER_CLASS[risk.risk_tier]}`}
+        >
+          {risk.risk_tier}
+        </span>
+        <span className="truncate text-sm font-medium text-text-primary">{formatActionType(action.action_type)}</span>
+        {risk.injection_flag ? (
           <span
-            className={`rounded-full px-3 py-1 text-xs font-medium text-white ${RISK_TIER_CLASS[risk.risk_tier]}`}
+            title="Injection detected"
+            aria-label="Injection detected"
+            className="flex h-6 w-6 items-center justify-center rounded-full bg-risk-critical text-white"
           >
-            {risk.risk_tier}
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2.5}
+                d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.18A1 1 0 003 19.5h18a1 1 0 00.89-1.46L13.71 3.86a1 1 0 00-1.72 0z"
+              />
+            </svg>
           </span>
-          <span className="text-sm font-medium text-text-primary">{action.action_type}</span>
-          {risk.injection_flag && (
-            <span className="rounded-full bg-risk-critical px-2 py-0.5 text-xs font-medium text-white">
-              injection detected
-            </span>
-          )}
-          <span className="max-w-md truncate text-sm text-text-secondary">{contentOf(action.payload)}</span>
-        </div>
-        <span className="shrink-0 text-xs text-text-secondary">{new Date(incident.created_at).toLocaleString()}</span>
+        ) : (
+          <span aria-hidden="true" />
+        )}
+        <span className="min-w-0 truncate text-sm text-text-secondary">{contentOf(action.payload)}</span>
+        <span className="shrink-0 whitespace-nowrap text-right text-xs text-text-secondary">
+          {new Date(incident.created_at).toLocaleString()}
+        </span>
       </button>
 
       {expanded && (
-        <div className="space-y-4 border-t border-border px-4 py-4">
+        <div className="space-y-4 border-t border-border bg-bg px-4 py-4">
           <section>
             <h3 className="text-xs font-medium uppercase tracking-wide text-text-secondary">Full payload</h3>
             <pre className="mt-1 overflow-x-auto whitespace-pre-wrap rounded-md bg-bg p-3 text-xs text-text-primary">
