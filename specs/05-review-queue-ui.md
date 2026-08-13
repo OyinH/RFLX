@@ -18,7 +18,7 @@ Table bound to `incidents` filtered on `decision = 'escalate'`, joined to `risk_
 ## Workflow
 
 1. Reviewer navigates to `/review-queue`.
-2. Page loads all incidents with `decision = 'escalate'` that have no `review_decisions` row yet, ordered oldest-first (`getEscalatedIncidents()`'s `.order("created_at", { ascending: true })`).
+2. Page loads incidents with `decision = 'escalate'` that have no `review_decisions` row yet, ordered oldest-first (`getEscalatedIncidents()`'s `.order("created_at", { ascending: true })`), paginated at `REVIEW_QUEUE_PAGE_SIZE` (25) per page via a `?page=` search param — the full matching set can be large (500+ pending incidents verified live), and the header shows the total pending count regardless of which page is in view.
 3. Each row shows: `action_type`, `risk_tier` (colored per `docs/design.md`'s risk-tier tokens), `injection_flag` status, a summary of `reasoning`, and the originating `agent_actions.payload.content`.
 4. Reviewer opens one incident to see full detail: complete `payload`, full `reasoning`, and every `evidence_sources` entry (tool name, query, finding).
 5. Reviewer clicks Approve or Reject, optionally adding `notes`, and must also set two more fields before submitting (`docs/rflx_PRD.md` §6.1's reviewer-outcome calibration log):
@@ -40,6 +40,7 @@ Table bound to `incidents` filtered on `decision = 'escalate'`, joined to `risk_
 - **Two reviewers open the same incident concurrently and both submit a decision:** nothing at the database layer prevents two `review_decisions` rows for one `incident_id` (`specs/01`'s schema has no unique constraint there, by design — append-only). The UI should treat the *first* successful insert as authoritative, but a second submission will still succeed as a second row. Flagged as an accepted MVP limitation, not silently fixed with a constraint that would break the append-only model — a future pass could add a unique index on `review_decisions.incident_id` if single-reviewer-only becomes a hard requirement.
 - **`agent_actions.payload.content` contains the injection text itself:** the review queue must render this as plain text/escaped content, never interpret it (e.g. never render it as HTML, never feed it back into any prompt from this view) — this is exactly the kind of adversarial content the guardrail exists to catch, and the UI displaying it is a read-only audit view, not another place for it to execute.
 - **Queue is empty:** show an explicit "no actions awaiting review" state, not a blank page indistinguishable from a loading or error state.
+- **`?page=` points past the last page** (e.g. enough incidents on it were reviewed since the link was generated): distinct from the empty-queue state above — shows "no incidents on page N" with a link back to page 1, not the same "no actions awaiting review" message, since the queue itself may still have pending incidents on earlier pages.
 - **`submitReviewDecision` fails (network/Supabase error):** show the failure to the reviewer and keep the incident in the queue — don't optimistically remove it from the list before the write is confirmed.
 
 ## Metric This View Supports
@@ -55,3 +56,4 @@ Reviewer time-to-decision (`docs/rflx_PRD.md` §1 secondary metric) — self-mea
 - [ ] Risk tier and decision-adjacent UI elements use only `docs/design.md`'s semantic color tokens (`--color-risk-*`) — checked by `/design-system` before ship, not just at build time.
 - [ ] `agent_actions.payload.content` renders as inert text even when it contains injection-attempt phrasing (verify with one of `specs/08-eval-harness.md`'s adversarial cases rendered in the queue).
 - [ ] Empty-queue and write-failure states are each visually distinct from the normal loaded state.
+- [ ] `/review-queue?page=N` shows the correct 25-incident slice for that page, oldest-first overall (not just within a page), and the header's total pending count matches the full filtered set, not just the current page.

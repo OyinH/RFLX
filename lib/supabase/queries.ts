@@ -21,6 +21,16 @@ export type EscalatedIncident = Incident & {
   agent_action: AgentAction;
 };
 
+export type EscalatedIncidentsPage = {
+  incidents: EscalatedIncident[];
+  totalCount: number;
+};
+
+// Unpaginated, this view rendered every pending incident's full reasoning
+// text on one page — fine at MVP row counts, not at hundreds-and-growing
+// (verified live: 500+ pending incidents produced a multi-megabyte page).
+export const REVIEW_QUEUE_PAGE_SIZE = 25;
+
 /**
  * Review queue read — specs/05-review-queue-ui.md. Incidents awaiting a
  * decision, joined with exactly the evidence a reviewer needs (payload,
@@ -42,8 +52,15 @@ export type EscalatedIncident = Incident & {
  *
  * Excludes incidents that already have a review_decisions row — otherwise a
  * reviewed incident stays visible in the queue forever (specs/05's Edge Cases).
+ *
+ * `page` is 1-indexed. `totalCount` reflects the full filtered set (via
+ * PostgREST's exact count), not just the returned page, so callers can
+ * render "N pending" and compute total pages.
  */
-export async function getEscalatedIncidents(): Promise<EscalatedIncident[]> {
+export async function getEscalatedIncidents(
+  page = 1,
+  pageSize: number = REVIEW_QUEUE_PAGE_SIZE,
+): Promise<EscalatedIncidentsPage> {
   const supabase = createServiceRoleClient();
 
   const { data: decided, error: decidedError } = await supabase
@@ -51,21 +68,38 @@ export async function getEscalatedIncidents(): Promise<EscalatedIncident[]> {
     .select("incident_id");
   if (decidedError) throw decidedError;
   const decidedIncidentIds = (decided ?? []).map((row) => row.incident_id);
+  const notDecidedFilter = decidedIncidentIds.length > 0 ? `(${decidedIncidentIds.join(",")})` : null;
+
+  // Count first, head-only (no rows returned) — .range() below throws
+  // "Requested range not satisfiable" if its start offset is past the last
+  // matching row (verified live against a stale/out-of-range ?page= link),
+  // so that has to be checked before attempting the ranged query, not
+  // caught after the fact.
+  let countQuery = supabase
+    .from("agent_actions")
+    .select("*, incident:incidents!inner(*)", { count: "exact", head: true })
+    .eq("incident.decision", "escalate");
+  if (notDecidedFilter) countQuery = countQuery.not("incident.id", "in", notDecidedFilter);
+  const { count, error: countError } = await countQuery;
+  if (countError) throw countError;
+  const totalCount = count ?? 0;
+
+  const from = (page - 1) * pageSize;
+  if (totalCount === 0 || from >= totalCount) {
+    return { incidents: [], totalCount };
+  }
 
   let query = supabase
     .from("agent_actions")
     .select("*, incident:incidents!inner(*), risk_classification:risk_classifications(*)")
     .eq("incident.decision", "escalate")
     .order("created_at", { ascending: true });
+  if (notDecidedFilter) query = query.not("incident.id", "in", notDecidedFilter);
 
-  if (decidedIncidentIds.length > 0) {
-    query = query.not("incident.id", "in", `(${decidedIncidentIds.join(",")})`);
-  }
-
-  const { data, error } = await query;
+  const { data, error } = await query.range(from, from + pageSize - 1);
   if (error) throw error;
 
-  return (data ?? []).map((row) => {
+  const incidents = (data ?? []).map((row) => {
     const agentAction: AgentAction = {
       id: row.id,
       agent_id: row.agent_id,
@@ -81,6 +115,8 @@ export async function getEscalatedIncidents(): Promise<EscalatedIncident[]> {
     }
     return { ...incident, risk_classification: riskClassification, agent_action: agentAction };
   });
+
+  return { incidents, totalCount };
 }
 
 /** PostgREST returns a to-one embed as an object when it can prove the
