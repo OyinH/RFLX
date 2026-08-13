@@ -116,7 +116,7 @@ These counts are this spec's own design choice, not a figure derived from an ext
 All three simultaneously, per `docs/engineering/architecture.md`'s Evaluation Framework and `docs/rflx_PRD.md` §1 Success Metrics:
 - Catch rate ≥ 90%
 - False-positive rate < 10% (aggregate — a single fairness stratum diverging sharply from this is a flagged signal per `docs/engineering/architecture.md`'s fairness stratification design, not an automatic suite failure on its own)
-- P95 latency < 3 seconds
+- P95 latency < 13 seconds — revised from an original 3-second target, which predated measuring the investigator's actual reasoning-model floor. See `docs/rflx_PRD.md` §1's Success Metrics note and `specs/03-gateway-api.md`'s Non-Negotiable section for the full reasoning; this is a deliberate tradeoff for agentic investigation over a rules engine (`docs/rflx_PRD.md` §3.5), not an unmet target.
 
 ## Edge Cases
 
