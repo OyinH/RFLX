@@ -7,9 +7,9 @@ description: Sets up and wires Microsoft Foundry tracing, evaluation, and monito
 
 Companion to `docs/design.md` §5 (rationale — what Foundry adds, what it doesn't replace) and `skills/implementation-specs/SKILL.md` (which spans to emit and where).
 
-## Status: Scaffolded, Details Filled In During Build (Days 4–9)
+## Status: Tracing Live, Evaluator/Monitoring Still Open
 
-This is P1 (`skills/engineering-planner/SKILL.md`) — the guardrail engine and eval suite fully prove the hypothesis without it, so this file is a checklist and process for now, not a finished spec. Fill in the exact OTel SDK config and Rubric evaluator definition once they're actually written, the same way `skills/design-system/SKILL.md` gets filled in as visual decisions get made.
+This is P1 (`skills/engineering-planner/SKILL.md`) — the guardrail engine and eval suite fully prove the hypothesis without it. Tracing (Setup Checklist items 1–5 below) is done and verified end-to-end in both local dev and production (Netlify serverless). The Rubric evaluator, continuous evaluation sampling, and Agent Monitoring Dashboard alert threshold (items 6–8) are not started.
 
 ## When Invoked
 
@@ -25,11 +25,11 @@ This is P1 (`skills/engineering-planner/SKILL.md`) — the guardrail engine and 
 
 Check these off as they're actually done — don't mark complete ahead of the real work:
 
-- [ ] Microsoft Foundry project created, separate from the Azure AI Content Safety resource
-- [ ] Application Insights resource linked to the Foundry project (not provisioned automatically — associate or create one)
-- [ ] OpenTelemetry exporter (`@azure/monitor-opentelemetry-exporter`) configured with the Application Insights connection string
-- [ ] Spans emitting for: Prompt Shield call, investigator tool calls, investigator output, Policy Engine decision
-- [ ] End-to-end trace verified in the Foundry portal
+- [x] Microsoft Foundry project created, separate from the Azure AI Content Safety resource
+- [x] Application Insights resource linked to the Foundry project (not provisioned automatically — associate or create one)
+- [x] OpenTelemetry exporter (`@azure/monitor-opentelemetry-exporter`) configured with the Application Insights connection string
+- [x] Spans emitting for: Prompt Shield call, investigator tool calls, investigator output, Policy Engine decision
+- [x] End-to-end trace verified — confirmed in Application Insights' `dependencies` table (not `traces`, which is a different Application Insights concept for log/diagnostic messages), from both local dev and production
 - [ ] Custom Rubric evaluator built from the risk taxonomy
 - [ ] Continuous evaluation sampling configured
 - [ ] Agent Monitoring Dashboard alert threshold configured (FP rate > 15% over rolling 7 days)

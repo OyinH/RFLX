@@ -11,7 +11,7 @@ Loads automatically at the start of every session in this repo. Follows the Idea
 - `skills/frontend-setup/SKILL.md` — scaffolds the Next.js shell with the design system baked in, once
 - `skills/design-system/SKILL.md` — enforces `docs/design.md` on every screen, every session
 - `skills/security-foundation/SKILL.md` — audits plans/code for security gaps before anything ships
-- `skills/observability-setup/SKILL.md` — Microsoft Foundry tracing/eval/monitoring wiring (P1, scaffolded — filled in during Days 4–9)
+- `skills/observability-setup/SKILL.md` — Microsoft Foundry tracing/eval/monitoring wiring (P1). Tracing is live and verified (`lib/observability/tracer.ts`, Application Insights); the Rubric evaluator, continuous evaluation sampling, and Agent Monitoring Dashboard alert threshold are still open per that file's Setup Checklist.
 
 Read the relevant doc before making product or architecture decisions; don't infer scope from code alone. (Older root-level files — `rflx-ai-PRD.md`, `rflx_Project_Blueprint_v2.6.md`, `rflx_Project_Blueprint.md` — are superseded by the structure above and kept only as historical reference.)
 
@@ -19,16 +19,16 @@ rflx.ai is clinical AI agent guardrail middleware: it screens a proposed agent a
 
 ## Build and Test Commands
 
-Project scaffolded by `/frontend-setup` (Next.js 15 App Router, React 19, Tailwind 3, TypeScript). Verified working as of scaffolding: `npm install`, `npm run build`, and `npm run lint` all run clean.
+Project scaffolded by `/frontend-setup` (Next.js 15 App Router, React 19, Tailwind 3, TypeScript). `npm install`, `npm run build`, and `npm run lint` all run clean.
 
 - Install: `npm install`
 - Local dev (full app — UI + API routes, on localhost): `npm run dev`
 - Build: `npm run build`
 - Lint: `npm run lint`
-- DB migrations: `supabase db push` — not yet applicable, no Supabase project linked yet (copy `.env.local.example` to `.env.local` once one exists)
-- Run eval suite: `npm run eval` → writes `eval/results.csv` — not yet wired (script and case files don't exist yet); fully spec'd in `specs/08-eval-harness.md`
-- Run unit tests: `npm test` — not yet wired; no test framework chosen yet
-- Deploy: automatic via Netlify on push to `main` (no manual deploy step) — not yet configured; no `netlify.toml` or Netlify site linked yet
+- DB migrations: `supabase db push` — Supabase project `RFLX` (`ejekxvgxftfcatrczxbt`) is live with schema through `supabase/migrations/0003`. The CLI link state (`supabase/.temp`) is gitignored/machine-specific, so a fresh clone needs `supabase link --project-ref ejekxvgxftfcatrczxbt` (and `SUPABASE_ACCESS_TOKEN` set) before `db push` will work.
+- Run eval suite: `npm run eval` → writes `eval/results.csv`. Fully wired: 100 committed cases (40 injection, 60 benign) per `specs/08-eval-harness.md`. Targets catch rate ≥90%, false-positive rate <10%, P95 latency <13s (revised from an original 3s target — see `specs/03-gateway-api.md`'s Non-Negotiable section for why). Set `GATEWAY_BASE_URL` to target something other than `http://localhost:3000` (e.g. the deployed site).
+- Run unit tests: `npm test` — not yet wired; no test framework chosen yet. The eval suite above covers behavioral/accuracy verification; no unit-level test coverage exists separately.
+- Deploy: automatic via Netlify on push to `main` (no manual deploy step). Site `rflx` is live at `rflx.netlify.app`, `netlify.toml` configured.
 
 ## Architectural Decisions
 
