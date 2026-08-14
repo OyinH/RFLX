@@ -2,7 +2,6 @@ import Link from "next/link";
 import { getIncidentCountsByDecision } from "@/lib/supabase/queries";
 import { getErrorMessage } from "@/lib/errors";
 import type { Decision } from "@/lib/supabase/types";
-import { Logo } from "./Logo";
 
 // getIncidentCountsByDecision is a live Supabase call — without this, Next.js
 // can't detect that and statically prerenders the page once at build time,
@@ -84,8 +83,7 @@ export default async function Home() {
     <main id="main-content" className="bg-bg px-6 py-16">
       <div className="mx-auto max-w-5xl">
         <section className="text-center">
-          <Logo size={44} />
-          <h1 className="mt-4 text-2xl font-semibold text-text-primary sm:text-3xl">
+          <h1 className="text-2xl font-semibold text-text-primary sm:text-3xl">
             Clinical AI agent guardrail middleware
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-base text-text-secondary">
@@ -109,18 +107,18 @@ export default async function Home() {
         </section>
 
         {stats && total > 0 ? (
-          <section
-            aria-label="Live incident totals"
-            className="mt-12 grid grid-cols-1 gap-4 rounded-lg border border-border bg-surface p-6 sm:grid-cols-3"
-          >
+          <section aria-label="Live incident totals" className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-3">
             {(["auto_approve", "escalate", "block"] as const).map((decision) => (
               <Link
                 key={decision}
                 href={STAT_HREF[decision]}
-                className="rounded-md text-center transition-colors hover:bg-bg sm:border-l sm:border-border sm:first:border-l-0"
+                className="group rounded-lg border border-border bg-surface p-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md"
               >
                 <p className="text-2xl font-semibold text-text-primary">{stats[decision].toLocaleString()}</p>
                 <p className="mt-1 text-sm text-text-secondary">{STAT_LABELS[decision]}</p>
+                <p className="mt-3 text-xs font-medium text-primary">
+                  View details <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                </p>
               </Link>
             ))}
           </section>
