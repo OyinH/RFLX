@@ -15,7 +15,7 @@ OpenTelemetry spans emitted from within `specs/03-gateway-api.md`'s request hand
 3. The investigator's final structured output
 4. The Policy Engine's decision (`specs/02-policy-engine.md`)
 
-Exported to a Microsoft Foundry project. Additive only — never blocks or slows the response if the exporter is unavailable.
+Exported to a Microsoft Foundry project via the Application Insights resource linked to it — the Azure Monitor OpenTelemetry exporter (`@azure/monitor-opentelemetry-exporter`) and a connection string, not a generic OTLP/HTTP endpoint with a bearer token (an earlier version of this file assumed the latter before that was verified against current Microsoft Learn docs; `lib/observability/tracer.ts` and `AZURE_FOUNDRY_CONNECTION_STRING` reflect the corrected mechanism). Additive only — never blocks or slows the response if the exporter is unavailable.
 
 ## Span Shape
 

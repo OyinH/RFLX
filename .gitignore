@@ -12,6 +12,7 @@ out/
 .supabase-token
 .supabase-db-password
 .netlify-token
+.foundry-connection-string
 
 # Supabase CLI local link state — machine-specific, not app config
 supabase/.temp
