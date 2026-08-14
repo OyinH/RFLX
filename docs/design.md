@@ -22,8 +22,10 @@
 ### Brand
 | Token | Value | Use |
 |---|---|---|
-| `--color-primary` | `#2563EB` | Primary actions, links, active states |
-| `--color-primary-hover` | `#1D4ED8` | Primary action hover state |
+| `--color-primary` | `#312E81` | Primary actions, links, active states |
+| `--color-primary-hover` | `#201C55` | Primary action hover state |
+
+**Change note:** the original `#2563EB` was Tailwind's default blue-600 — one of the most common default colors in AI-built products, and specifically flagged as reading "generic" rather than designed. Kept in the same blue family but shifted from bright/saturated to deep/muted, which is what actually separates a considered brand color from a starter-template one. Verified at 11.42:1 (primary) / 15.46:1 (hover) against both white button text and the page background — well past WCAG AAA, not just the AA minimum the risk/decision tokens target.
 
 ### Semantic — Risk Tier (`docs/engineering/data-model.md` reference data)
 | Token | Value | risk_tier |

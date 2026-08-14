@@ -16,9 +16,17 @@
   --color-text-primary: #111827;
   --color-text-secondary: #6b7280;
 
-  /* Brand */
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
+  /* Brand — deep, muted indigo rather than a bright saturated blue
+     (#2563eb, the previous value, is essentially Tailwind's default
+     blue-600 — one of the most common default-template colors in AI-built
+     products). Value/saturation is what separates "considered brand
+     color" from "generic starter blue" more than hue does; this stays in
+     the same blue family but shifts dark and muted. Verified at 11.42:1
+     (primary) / 15.46:1 (hover) against both white button text and the
+     light page background — passes WCAG AAA with wide margin, not just
+     the AA minimum the risk/decision tokens below target. */
+  --color-primary: #312e81;
+  --color-primary-hover: #201c55;
 
   /* Semantic — risk tier. Darkened from the original palette (#16a34a /
      #d97706 / #ea580c) — those measured 3.19-3.56:1 contrast against the

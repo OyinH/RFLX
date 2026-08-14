@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getIncidentCountsByDecision } from "@/lib/supabase/queries";
 import { getErrorMessage } from "@/lib/errors";
 import type { Decision } from "@/lib/supabase/types";
+import { Logo } from "./Logo";
 
 // getIncidentCountsByDecision is a live Supabase call — without this, Next.js
 // can't detect that and statically prerenders the page once at build time,
@@ -83,7 +84,8 @@ export default async function Home() {
     <main id="main-content" className="bg-bg px-6 py-16">
       <div className="mx-auto max-w-5xl">
         <section className="text-center">
-          <h1 className="text-2xl font-semibold text-text-primary sm:text-3xl">
+          <Logo size={44} />
+          <h1 className="mt-4 text-2xl font-semibold text-text-primary sm:text-3xl">
             Clinical AI agent guardrail middleware
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-base text-text-secondary">

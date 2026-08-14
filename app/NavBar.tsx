@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Logo } from "./Logo";
 
 const LINKS = [
   { href: "/review-queue", label: "Review Queue" },
@@ -27,8 +28,9 @@ export function NavBar() {
       <nav aria-label="Primary" className="mx-auto flex max-w-6xl items-center gap-8 px-6">
         <Link
           href="/"
-          className="py-4 text-base font-semibold text-text-primary transition-colors hover:text-primary"
+          className="flex items-center gap-2 py-4 text-base font-semibold text-text-primary transition-opacity hover:opacity-80"
         >
+          <Logo size={24} />
           rflx.ai
         </Link>
         <div className="flex gap-6">
