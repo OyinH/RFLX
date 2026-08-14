@@ -39,6 +39,9 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["Inter", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "sans-serif"],
+        // Wordmark only (app/NavBar.tsx) — never used for body/UI text. See
+        // app/layout.tsx's Space_Grotesk setup for why this exists.
+        logo: ["var(--font-logo)", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
       },
     },
   },

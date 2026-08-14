@@ -49,6 +49,7 @@
 ## Typography
 
 - **Font stack:** `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` — system-first, no custom font loading required for the MVP.
+- **Wordmark exception:** the "rflx.ai" logotype (`app/NavBar.tsx` only) uses Space Grotesk (`next/font/google`, exposed as `--font-logo`/the `font-logo` Tailwind utility) — a logotype set in the same font as surrounding body copy reads as plain text next to an icon, not a designed brand mark. Scoped to the wordmark only; never use `font-logo` for UI/body text.
 - **Scale:**
 
 | Token | Size | Use |

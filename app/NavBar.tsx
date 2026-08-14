@@ -26,12 +26,12 @@ export function NavBar() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface shadow-sm">
       <nav aria-label="Primary" className="mx-auto flex max-w-6xl items-center gap-8 px-6">
-        <Link
-          href="/"
-          className="flex items-center gap-2 py-4 text-base font-semibold text-text-primary transition-opacity hover:opacity-80"
-        >
-          <Logo size={24} />
-          rflx.ai
+        <Link href="/" className="flex items-center gap-2.5 py-4 transition-opacity hover:opacity-80">
+          <Logo size={30} />
+          <span className="font-logo text-xl font-bold tracking-tight">
+            <span className="text-text-primary">rflx</span>
+            <span className="text-primary">.ai</span>
+          </span>
         </Link>
         <div className="flex gap-6">
           {LINKS.map((link) => {
