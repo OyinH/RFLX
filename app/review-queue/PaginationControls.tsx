@@ -4,9 +4,23 @@ import Link from "next/link";
  * Plain server-rendered nav (no client JS needed) — page.tsx is
  * force-dynamic, so a new page number is just a normal navigation that
  * re-runs getEscalatedIncidents() with a different offset.
+ *
+ * `dateQuery` (e.g. "from=2026-08-13&to=2026-08-14", or "" when unfiltered)
+ * carries the active date-range filter along so paging within a narrowed
+ * range doesn't silently drop back to the unfiltered queue.
  */
-export function PaginationControls({ page, totalPages }: { page: number; totalPages: number }) {
+export function PaginationControls({
+  page,
+  totalPages,
+  dateQuery = "",
+}: {
+  page: number;
+  totalPages: number;
+  dateQuery?: string;
+}) {
   if (totalPages <= 1) return null;
+
+  const hrefForPage = (n: number) => `/review-queue?${dateQuery ? `${dateQuery}&` : ""}page=${n}`;
 
   return (
     <nav
@@ -15,7 +29,7 @@ export function PaginationControls({ page, totalPages }: { page: number; totalPa
     >
       {page > 1 ? (
         <Link
-          href={`/review-queue?page=${page - 1}`}
+          href={hrefForPage(page - 1)}
           className="rounded-md border border-border px-3 py-1.5 text-sm text-text-primary hover:bg-surface"
         >
           ← Previous
@@ -32,7 +46,7 @@ export function PaginationControls({ page, totalPages }: { page: number; totalPa
 
       {page < totalPages ? (
         <Link
-          href={`/review-queue?page=${page + 1}`}
+          href={hrefForPage(page + 1)}
           className="rounded-md border border-border px-3 py-1.5 text-sm text-text-primary hover:bg-surface"
         >
           Next →

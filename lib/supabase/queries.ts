@@ -80,12 +80,21 @@ function mapRowToIncidentDetail(row: {
  * `page` is 1-indexed. `totalCount` reflects the full filtered set (via
  * PostgREST's exact count), not just the returned page, so callers can
  * render "N pending"/"N total" and compute total pages.
+ *
+ * `dateRange` (optional) filters on `agent_actions.created_at` — added so a
+ * caller with a large oldest-first backlog (verified live: 693 unreviewed
+ * incidents from a single day) can jump straight to a date instead of
+ * paging through hundreds of older rows to reach it. `startTs`/`endTs` are
+ * exclusive/inclusive ISO8601 bounds already resolved to day boundaries by
+ * the caller (see app/review-queue/page.tsx) — this function just applies
+ * them, it doesn't interpret date-only strings itself.
  */
 async function fetchIncidentsByDecision(
   decision: Decision,
   options: { excludeReviewed: boolean; ascending: boolean },
   page: number,
   pageSize: number,
+  dateRange?: { startTs?: string; endTs?: string },
 ): Promise<IncidentDetailPage> {
   const supabase = createServiceRoleClient();
 
@@ -107,6 +116,8 @@ async function fetchIncidentsByDecision(
     .select("*, incident:incidents!inner(*)", { count: "exact", head: true })
     .eq("incident.decision", decision);
   if (notDecidedFilter) countQuery = countQuery.not("incident.id", "in", notDecidedFilter);
+  if (dateRange?.startTs) countQuery = countQuery.gte("created_at", dateRange.startTs);
+  if (dateRange?.endTs) countQuery = countQuery.lt("created_at", dateRange.endTs);
   const { count, error: countError } = await countQuery;
   if (countError) throw countError;
   const totalCount = count ?? 0;
@@ -122,6 +133,8 @@ async function fetchIncidentsByDecision(
     .eq("incident.decision", decision)
     .order("created_at", { ascending: options.ascending });
   if (notDecidedFilter) query = query.not("incident.id", "in", notDecidedFilter);
+  if (dateRange?.startTs) query = query.gte("created_at", dateRange.startTs);
+  if (dateRange?.endTs) query = query.lt("created_at", dateRange.endTs);
 
   const { data, error } = await query.range(from, from + pageSize - 1);
   if (error) throw error;
@@ -138,8 +151,9 @@ async function fetchIncidentsByDecision(
 export async function getEscalatedIncidents(
   page = 1,
   pageSize: number = INCIDENT_LIST_PAGE_SIZE,
+  dateRange?: { startTs?: string; endTs?: string },
 ): Promise<IncidentDetailPage> {
-  return fetchIncidentsByDecision("escalate", { excludeReviewed: true, ascending: true }, page, pageSize);
+  return fetchIncidentsByDecision("escalate", { excludeReviewed: true, ascending: true }, page, pageSize, dateRange);
 }
 
 /**
