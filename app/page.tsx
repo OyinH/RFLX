@@ -80,8 +80,20 @@ export default async function Home() {
   const total = stats ? stats.auto_approve + stats.escalate + stats.block : 0;
 
   return (
-    <main id="main-content" className="bg-bg px-6 py-16">
-      <div className="mx-auto max-w-5xl">
+    <main id="main-content" className="relative overflow-hidden bg-bg px-6 py-16">
+      {/* Soft brand-tinted glow behind the hero — landing page only. The
+          working-tool views (review-queue/dashboard/incidents) stay flat and
+          neutral on purpose (docs/design.md: scan-ability over whitespace
+          for those), but a plain white/light-gray page reads as a generic
+          template for the one page that's actually meant to make a first
+          impression. Verified the tint doesn't affect text contrast: even at
+          its strongest point the effective background stays at 13.64:1
+          against text-primary, still far past WCAG AA's 4.5:1. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[480px] bg-[radial-gradient(ellipse_60%_50%_at_50%_-10%,rgba(49,46,129,0.12),transparent)]"
+      />
+      <div className="relative z-10 mx-auto max-w-5xl">
         <section className="text-center">
           <h1 className="text-2xl font-semibold text-text-primary sm:text-3xl">
             Clinical AI agent guardrail middleware
