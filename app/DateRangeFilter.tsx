@@ -3,28 +3,42 @@
 import { useRouter } from "next/navigation";
 
 /**
- * Server-side date-range filter — distinct from ReviewQueueTable's risk/injection/
- * sort controls, which only reorder or filter the 25 rows already fetched for the
- * current page. With a large oldest-first backlog (verified live: 693 unreviewed
- * incidents from a single earlier day ahead of the most recent ones in the queue),
- * a reviewer needs to jump straight to a date rather than page through hundreds of
- * older rows to reach it — this navigates to a new URL so page.tsx re-runs
- * getEscalatedIncidents() with a narrower query, not a client-side re-sort.
+ * Server-side date-range filter, shared by the Review Queue and Incident Log —
+ * distinct from ReviewQueueTable's/IncidentLogTable's other controls, which
+ * only reorder or filter the rows already fetched for the current page. With
+ * a large oldest/newest-first backlog (verified live: 693+ unreviewed
+ * incidents from a single earlier day ahead of others in the queue), a
+ * reviewer needs to jump straight to a date rather than page through hundreds
+ * of rows to reach it — this navigates to a new URL so the page re-runs its
+ * query with a narrower date range, not a client-side re-sort.
  *
  * No date-picker library — the native <input type="date"> already provides a
  * calendar UI in every evergreen browser, proportionate to this project's scope.
+ *
+ * `basePath` is the target route (e.g. "/review-queue" or "/incidents").
+ * `extraParams` carries params the caller needs preserved alongside from/to
+ * (e.g. incidents' `?decision=` tab) — omitting `page` here is deliberate,
+ * a different date range always resets to page 1.
  */
-export function DateRangeFilter({ from, to }: { from?: string; to?: string }) {
+export function DateRangeFilter({
+  basePath,
+  from,
+  to,
+  extraParams,
+}: {
+  basePath: string;
+  from?: string;
+  to?: string;
+  extraParams?: Record<string, string>;
+}) {
   const router = useRouter();
 
   function apply(nextFrom?: string, nextTo?: string) {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(extraParams);
     if (nextFrom) params.set("from", nextFrom);
     if (nextTo) params.set("to", nextTo);
-    // Omitting `page` resets to page 1 — a different date range invalidates
-    // whatever page offset was in view.
     const qs = params.toString();
-    router.push(qs ? `/review-queue?${qs}` : "/review-queue");
+    router.push(qs ? `${basePath}?${qs}` : basePath);
   }
 
   const hasFilter = Boolean(from || to);

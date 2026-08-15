@@ -166,8 +166,9 @@ export async function getIncidentsByDecision(
   decision: "auto_approve" | "block",
   page = 1,
   pageSize: number = INCIDENT_LIST_PAGE_SIZE,
+  dateRange?: { startTs?: string; endTs?: string },
 ): Promise<IncidentDetailPage> {
-  return fetchIncidentsByDecision(decision, { excludeReviewed: false, ascending: false }, page, pageSize);
+  return fetchIncidentsByDecision(decision, { excludeReviewed: false, ascending: false }, page, pageSize, dateRange);
 }
 
 /** PostgREST returns a to-one embed as an object when it can prove the

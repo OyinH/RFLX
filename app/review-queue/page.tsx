@@ -1,30 +1,10 @@
 import Link from "next/link";
 import { getEscalatedIncidents, INCIDENT_LIST_PAGE_SIZE } from "@/lib/supabase/queries";
 import { getErrorMessage } from "@/lib/errors";
+import { resolveDateRange, buildDateQuery } from "@/lib/ui/date-range";
 import { ReviewQueueTable } from "./ReviewQueueTable";
 import { PaginationControls } from "./PaginationControls";
-import { DateRangeFilter } from "./DateRangeFilter";
-
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-
-// `from`/`to` are date-only (native <input type="date"> values, no time
-// component) — resolved to UTC day boundaries here so the query layer
-// (lib/supabase/queries.ts) only ever deals in already-resolved timestamps.
-// `to` is inclusive of the whole day, hence the +1-day exclusive upper bound.
-function toValidUtcDate(value?: string): Date | undefined {
-  if (!value || !DATE_ONLY.test(value)) return undefined;
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
-
-function resolveDateRange(from?: string, to?: string): { startTs?: string; endTs?: string } {
-  const startDate = toValidUtcDate(from);
-  const endDate = toValidUtcDate(to);
-  return {
-    startTs: startDate?.toISOString(),
-    endTs: endDate ? new Date(endDate.getTime() + 86_400_000).toISOString() : undefined,
-  };
-}
+import { DateRangeFilter } from "../DateRangeFilter";
 
 /**
  * Review Queue — specs/05-review-queue-ui.md. Server Component: reads
@@ -54,11 +34,7 @@ export default async function ReviewQueuePage({
   const page = Math.max(1, Math.trunc(Number(pageParam)) || 1);
   const dateRange = resolveDateRange(from, to);
   const isDateFiltered = Boolean(dateRange.startTs || dateRange.endTs);
-
-  const dateQueryParams = new URLSearchParams();
-  if (dateRange.startTs && DATE_ONLY.test(from ?? "")) dateQueryParams.set("from", from!);
-  if (dateRange.endTs && DATE_ONLY.test(to ?? "")) dateQueryParams.set("to", to!);
-  const dateQuery = dateQueryParams.toString();
+  const dateQuery = buildDateQuery(from, to);
 
   let loadError: string | null = null;
   let incidents: Awaited<ReturnType<typeof getEscalatedIncidents>>["incidents"] = [];
@@ -96,7 +72,7 @@ export default async function ReviewQueuePage({
       </header>
 
       <div className="mt-6">
-        <DateRangeFilter from={from} to={to} />
+        <DateRangeFilter basePath="/review-queue" from={from} to={to} />
       </div>
 
       {loadError ? (
