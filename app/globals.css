@@ -10,11 +10,18 @@
  */
 :root {
   /* Neutrals */
-  --color-bg: #f8f9fb;
+  --color-bg: #f0f8ff;
   --color-surface: #ffffff;
   --color-border: #e2e5ea;
   --color-text-primary: #111827;
   --color-text-secondary: #6b7280;
+  /* --color-bg was #f8f9fb — changed on explicit request. Two things
+     worth knowing if this ever gets revisited: --color-text-secondary
+     against this bg measures 4.51:1, barely past WCAG AA's 4.5:1
+     minimum (was 4.58:1 before); and --color-surface (#fff) against this
+     bg measures only 1.07:1 — white cards now rely almost entirely on
+     --color-border + shadow for separation from the page, not a
+     background difference, since the two are nearly the same lightness. */
 
   /* Brand — deep, muted indigo rather than a bright saturated blue
      (#2563eb, the previous value, is essentially Tailwind's default

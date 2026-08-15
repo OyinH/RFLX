@@ -13,11 +13,13 @@
 ### Neutrals
 | Token | Value | Use |
 |---|---|---|
-| `--color-bg` | `#F8F9FB` | Page background |
+| `--color-bg` | `#F0F8FF` | Page background |
 | `--color-surface` | `#FFFFFF` | Cards, table rows, panels |
 | `--color-border` | `#E2E5EA` | Dividers, table borders |
 | `--color-text-primary` | `#111827` | Body text, headings |
 | `--color-text-secondary` | `#6B7280` | Metadata, timestamps, helper text |
+
+**Change note:** `--color-bg` was `#F8F9FB`, changed on explicit request. Two contrast effects worth knowing: `--color-text-secondary` against the new value measures 4.51:1 — just past WCAG AA's 4.5:1 minimum, with less margin than before (was 4.58:1); and `--color-surface` (`#FFFFFF`) against it measures only 1.07:1, so white cards no longer read as a distinct surface from the page by color alone — separation now depends almost entirely on `--color-border` and shadow.
 
 ### Brand
 | Token | Value | Use |
