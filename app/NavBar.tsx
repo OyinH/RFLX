@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/review-queue", label: "Review Queue" },
   { href: "/incidents", label: "Incidents" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/eval", label: "Eval Results" },
 ];
 
 /**

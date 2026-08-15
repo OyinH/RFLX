@@ -20,8 +20,14 @@ const nextConfig: NextConfig = {
   // isn't otherwise part of the module graph, so the serverless build won't
   // trace/include it without this. Without it, the file is present in local
   // dev (reads straight from disk) but missing after a deployed build.
+  // app/eval/page.tsx and app/api/eval/download/route.ts both read
+  // eval/results.csv via fs at runtime (specs/10-eval-results-ui.md) rather
+  // than importing it — same class of gotcha as prompts/ above: present in
+  // local dev, missing after a deployed serverless build without this.
   outputFileTracingIncludes: {
     "/api/agent/action-request": ["./prompts/**"],
+    "/eval": ["./eval/results.csv"],
+    "/api/eval/download": ["./eval/results.csv"],
   },
 };
 

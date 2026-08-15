@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 /**
  * Minimal HTTP Basic Auth gate for the reviewer-facing surfaces
- * (/review-queue, /dashboard, /incidents) — skills/security-foundation/SKILL.md's
+ * (/review-queue, /dashboard, /incidents, /eval) — skills/security-foundation/SKILL.md's
  * private-data-access-control check found these pages readable/writable by
  * anyone with the deployed URL: Supabase RLS is bypassed entirely by the
  * service-role client both routes use (lib/supabase/server.ts), and there
@@ -11,7 +11,8 @@ import type { NextRequest } from "next/server";
  * out of docs/rflx_PRD.md's MVP scope, per specs/05-review-queue-ui.md's own
  * note — just one shared credential from env vars, matching CLAUDE.md's
  * fail-closed-not-open principle: an unconfigured gate blocks access rather
- * than silently letting every request through.
+ * than silently letting every request through. /api/eval/:path* is the CSV/JSON
+ * download for /eval (specs/10-eval-results-ui.md) — same sensitive data, same gate.
  *
  * /api/agent/action-request is deliberately NOT behind this gate — it's
  * meant to be called by any AI agent per the PRD's agent-agnostic design,
@@ -47,5 +48,5 @@ export function middleware(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ["/review-queue/:path*", "/dashboard/:path*", "/incidents/:path*"],
+  matcher: ["/review-queue/:path*", "/dashboard/:path*", "/incidents/:path*", "/eval/:path*", "/api/eval/:path*"],
 };

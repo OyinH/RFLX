@@ -48,6 +48,8 @@
 
 **Contrast note (Change Process):** the original green/amber/orange values (`#16A34A`/`#D97706`/`#EA580C`) measured 3.19-3.56:1 contrast against the white text every risk/decision badge uses — below WCAG AA's 4.5:1 minimum for normal-size text (computed via the standard relative-luminance formula, not estimated). Darkened to the values above, each verified at 5.02-5.18:1. `--color-risk-critical`/`--color-decision-block` were already compliant (4.83:1) and are unchanged.
 
+**Reuse note (Change Process):** `app/eval/page.tsx`'s Go/No-Go PASS/FAIL banner and per-metric pass/fail indicators reuse `--color-decision-approve`/`--color-decision-block` (green/red) even though a Go/No-Go verdict isn't a `decision` enum value — the intent (functional pass/fail signal, not decoration) is the same, and inventing a separate `--color-status-pass`/`--color-status-fail` pair for an identical green/red meaning would just be two names for the same colors. If a genuinely different pass/fail semantic ever needs its own palette, split it out then.
+
 ## Typography
 
 - **Font stack:** `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` — system-first, no custom font loading required for the MVP.
