@@ -114,10 +114,10 @@ export function EvalResultsView({ summary }: { summary: EvalSummary }) {
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-6">
-        <h2 className="text-lg font-medium text-text-primary">False-positive rate by fairness dimension</h2>
+        <h2 className="text-lg font-medium text-text-primary">False-positive rate by patient demographics</h2>
         <p className="mt-1 text-xs text-text-secondary">
-          docs/engineering/architecture.md&apos;s fairness stratification — flags a stratum where the false-positive rate
-          diverges sharply from the aggregate, not a full fairness audit.
+          Surfaces whether the guardrail is more likely to over-flag legitimate actions for some patients than
+          others — a gap here is a signal to investigate, not something the aggregate rate alone would show.
         </p>
         {summary.falsePositiveByFairnessDimension.length === 0 ? (
           <p className="mt-4 text-sm text-text-secondary">No benign cases in this run.</p>

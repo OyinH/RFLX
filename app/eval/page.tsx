@@ -45,9 +45,10 @@ export default async function EvalPage() {
       <header>
         <h1 className="text-xl font-semibold text-text-primary">Eval Results</h1>
         <p className="mt-1 text-sm text-text-secondary">
-          How rflx&apos;s own guardrail performs against its Go/No-Go baseline (specs/08-eval-harness.md) — the same
-          100-case suite (40 injection, 60 benign) run via <code className="text-xs">npm run eval</code>.
-          {generatedAt ? ` Last run ${new Date(generatedAt).toLocaleString()}.` : ""}
+          How the guardrail performs against the accuracy baseline it must meet before shipping — a standardized
+          suite of 100 test cases (40 adversarial injection attempts, 60 legitimate clinical actions), evaluated
+          every time the system changes.
+          {generatedAt ? ` Last evaluated ${new Date(generatedAt).toLocaleString()}.` : ""}
         </p>
       </header>
 
@@ -58,10 +59,7 @@ export default async function EvalPage() {
         </div>
       ) : missing ? (
         <div className="mt-6 rounded-lg border border-border bg-surface p-8 text-center">
-          <p className="text-sm text-text-secondary">
-            No eval results yet. Run <code className="text-xs">npm run eval</code> and commit the generated{" "}
-            <code className="text-xs">eval/results.csv</code> to populate this page.
-          </p>
+          <p className="text-sm text-text-secondary">No evaluation has been run yet.</p>
         </div>
       ) : (
         <EvalResultsView summary={summary!} />
