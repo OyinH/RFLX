@@ -32,69 +32,75 @@ export type IncidentDetailPage = {
 // a multi-megabyte page).
 export const INCIDENT_LIST_PAGE_SIZE = 25;
 
-function mapRowToIncidentDetail(row: {
-  id: string;
-  agent_id: string;
-  action_type: ActionType;
-  payload: Record<string, unknown>;
-  source_channel: SourceChannel;
-  created_at: string;
-  incident: Incident | Incident[] | null;
-  risk_classification: RiskClassification | RiskClassification[] | null;
+/** Maps a list_incidents_by_decision() RPC row (supabase/migrations/0005) to IncidentDetail. */
+function mapRpcRowToIncidentDetail(row: {
+  agent_action: Record<string, unknown>;
+  incident: Record<string, unknown>;
+  risk_classification: Record<string, unknown>;
 }): IncidentDetail {
-  const agentAction: AgentAction = {
-    id: row.id,
-    agent_id: row.agent_id,
-    action_type: row.action_type,
-    payload: row.payload,
-    source_channel: row.source_channel,
-    created_at: row.created_at,
-  };
-  const incident = normalizeOne<Incident>(row.incident);
-  const riskClassification = normalizeOne<RiskClassification>(row.risk_classification);
-  if (!incident || !riskClassification) {
-    throw new Error(`agent_action ${row.id} is missing its incident or risk_classification row — data integrity issue.`);
-  }
+  const agentAction = row.agent_action as unknown as AgentAction;
+  const incident = row.incident as unknown as Incident;
+  const riskClassification = row.risk_classification as unknown as RiskClassification;
   return { ...incident, risk_classification: riskClassification, agent_action: agentAction };
 }
 
 /**
  * Shared by getEscalatedIncidents (specs/05-review-queue-ui.md) and
  * getIncidentsByDecision (the read-only incident log, app/incidents) — same
- * join, same pagination-before-range-error handling, different decision
- * filter and (for escalate only) the reviewed-incident exclusion.
+ * count-then-fetch shape, different decision filter and (for escalate only)
+ * the reviewed-incident exclusion.
  *
- * Queries FROM agent_actions, not incidents — PostgREST embeds via foreign
- * keys, and `incidents`/`risk_classifications` have no FK to each other
- * (both reference agent_actions independently), so embedding one under the
- * other the way an earlier version of this function did fails with
- * "Could not find a relationship between 'incidents' and
- * 'risk_classifications'" (verified against a live query). Both are
- * genuinely 1:1 with agent_actions, but without a unique constraint on
- * their action_id columns PostgREST can't prove that and may return the
- * reverse-relationship embed as a single-element array rather than an
- * object — normalizeOne() handles either shape defensively so this works
- * before and after that constraint is added (database.sql's
- * ux_risk_classifications_action_id / ux_incidents_action_id).
+ * The count query below still queries FROM agent_actions via PostgREST
+ * embedding (`incident:incidents!inner(*)`, `risk_classification:
+ * risk_classifications!inner(*)`) — `incidents`/`risk_classifications` have
+ * no FK to each other (both reference agent_actions independently), so
+ * embedding one under the other fails with "Could not find a relationship
+ * between 'incidents' and 'risk_classifications'" (verified against a live
+ * query); querying from agent_actions and embedding both avoids that. The
+ * actual page fetch goes through the list_incidents_by_decision() RPC
+ * instead (see that function's doc comment above) — PostgREST embedding
+ * only remains for counting, where filtering (not ordering) on the embedded
+ * resource is all that's needed, and that works fine.
  *
  * `page` is 1-indexed. `totalCount` reflects the full filtered set (via
  * PostgREST's exact count), not just the returned page, so callers can
  * render "N pending"/"N total" and compute total pages.
  *
- * `dateRange` (optional) filters on `agent_actions.created_at` — added so a
+ * `filters.dateRange` filters on `agent_actions.created_at` — added so a
  * caller with a large oldest-first backlog (verified live: 693 unreviewed
  * incidents from a single day) can jump straight to a date instead of
  * paging through hundreds of older rows to reach it. `startTs`/`endTs` are
  * exclusive/inclusive ISO8601 bounds already resolved to day boundaries by
  * the caller (see app/review-queue/page.tsx) — this function just applies
- * them, it doesn't interpret date-only strings itself.
+ * them, it doesn't interpret date-only strings itself. `filters.riskTier`/
+ * `filters.injectionFlag` narrow to one risk tier / injection-flag state.
+ *
+ * `sort` picks the actual page-fetch ordering. The count query below stays
+ * plain PostgREST (filtering on the embedded risk_classifications resource
+ * works fine there), but the page fetch goes through the
+ * list_incidents_by_decision() RPC (supabase/migrations/0005) instead of
+ * PostgREST's own `.order()` — verified live that ordering agent_actions by
+ * an embedded risk_classifications column fails with PGRST118 ("do not form
+ * a many-to-one or one-to-one relationship"), even with `!inner` and even
+ * though action_id is UNIQUE. `risk_tier` sort orders on risk_rank (the
+ * generated column from supabase/migrations/0004), not risk_tier itself —
+ * that's plain text ('LOW'/'MEDIUM'/'HIGH'/'CRITICAL'), so a naive order
+ * would sort alphabetically instead of by clinical severity.
  */
+export type IncidentSort = { field: "created_at" | "risk_tier"; ascending: boolean };
+export type IncidentFilters = {
+  dateRange?: { startTs?: string; endTs?: string };
+  riskTier?: RiskTier;
+  injectionFlag?: boolean;
+};
+
 async function fetchIncidentsByDecision(
   decision: Decision,
-  options: { excludeReviewed: boolean; ascending: boolean },
+  options: { excludeReviewed: boolean },
   page: number,
   pageSize: number,
-  dateRange?: { startTs?: string; endTs?: string },
+  sort: IncidentSort,
+  filters?: IncidentFilters,
 ): Promise<IncidentDetailPage> {
   const supabase = createServiceRoleClient();
 
@@ -106,18 +112,24 @@ async function fetchIncidentsByDecision(
     notDecidedFilter = decidedIncidentIds.length > 0 ? `(${decidedIncidentIds.join(",")})` : null;
   }
 
-  // Count first, head-only (no rows returned) — .range() below throws
-  // "Requested range not satisfiable" if its start offset is past the last
-  // matching row (verified live against a stale/out-of-range ?page= link),
-  // so that has to be checked before attempting the ranged query, not
-  // caught after the fact.
+  // Count first, head-only (no rows returned) — needed both to detect a
+  // stale/out-of-range ?page= link before attempting the ranged RPC fetch
+  // below, and because the RPC's own `count(*) over()` would only be
+  // reachable from a returned row, which an out-of-range page has none of.
   let countQuery = supabase
     .from("agent_actions")
-    .select("*, incident:incidents!inner(*)", { count: "exact", head: true })
+    .select("*, incident:incidents!inner(*), risk_classification:risk_classifications!inner(*)", {
+      count: "exact",
+      head: true,
+    })
     .eq("incident.decision", decision);
   if (notDecidedFilter) countQuery = countQuery.not("incident.id", "in", notDecidedFilter);
-  if (dateRange?.startTs) countQuery = countQuery.gte("created_at", dateRange.startTs);
-  if (dateRange?.endTs) countQuery = countQuery.lt("created_at", dateRange.endTs);
+  if (filters?.dateRange?.startTs) countQuery = countQuery.gte("created_at", filters.dateRange.startTs);
+  if (filters?.dateRange?.endTs) countQuery = countQuery.lt("created_at", filters.dateRange.endTs);
+  if (filters?.riskTier) countQuery = countQuery.eq("risk_classification.risk_tier", filters.riskTier);
+  if (filters?.injectionFlag !== undefined) {
+    countQuery = countQuery.eq("risk_classification.injection_flag", filters.injectionFlag);
+  }
   const { count, error: countError } = await countQuery;
   if (countError) throw countError;
   const totalCount = count ?? 0;
@@ -127,55 +139,54 @@ async function fetchIncidentsByDecision(
     return { incidents: [], totalCount };
   }
 
-  let query = supabase
-    .from("agent_actions")
-    .select("*, incident:incidents!inner(*), risk_classification:risk_classifications(*)")
-    .eq("incident.decision", decision)
-    .order("created_at", { ascending: options.ascending });
-  if (notDecidedFilter) query = query.not("incident.id", "in", notDecidedFilter);
-  if (dateRange?.startTs) query = query.gte("created_at", dateRange.startTs);
-  if (dateRange?.endTs) query = query.lt("created_at", dateRange.endTs);
-
-  const { data, error } = await query.range(from, from + pageSize - 1);
+  const { data, error } = await supabase.rpc("list_incidents_by_decision", {
+    p_decision: decision,
+    p_exclude_reviewed: options.excludeReviewed,
+    p_start_ts: filters?.dateRange?.startTs ?? null,
+    p_end_ts: filters?.dateRange?.endTs ?? null,
+    p_risk_tier: filters?.riskTier ?? null,
+    p_injection_flag: filters?.injectionFlag ?? null,
+    p_sort_field: sort.field,
+    p_sort_ascending: sort.ascending,
+    p_limit: pageSize,
+    p_offset: from,
+  });
   if (error) throw error;
 
-  return { incidents: (data ?? []).map(mapRowToIncidentDetail), totalCount };
+  return { incidents: (data ?? []).map(mapRpcRowToIncidentDetail), totalCount };
 }
 
 /**
  * Review queue read — specs/05-review-queue-ui.md. Incidents awaiting a
- * decision, oldest first, excluding ones that already have a review_decisions
- * row — otherwise a reviewed incident stays visible in the queue forever
- * (specs/05's Edge Cases).
+ * decision, excluding ones that already have a review_decisions row —
+ * otherwise a reviewed incident stays visible in the queue forever
+ * (specs/05's Edge Cases). Defaults to oldest-first ("process the
+ * longest-waiting escalations first") when the caller doesn't specify a sort.
  */
 export async function getEscalatedIncidents(
   page = 1,
   pageSize: number = INCIDENT_LIST_PAGE_SIZE,
-  dateRange?: { startTs?: string; endTs?: string },
+  filters?: IncidentFilters,
+  sort: IncidentSort = { field: "created_at", ascending: true },
 ): Promise<IncidentDetailPage> {
-  return fetchIncidentsByDecision("escalate", { excludeReviewed: true, ascending: true }, page, pageSize, dateRange);
+  return fetchIncidentsByDecision("escalate", { excludeReviewed: true }, page, pageSize, sort, filters);
 }
 
 /**
  * Read-only incident log (app/incidents) — already-terminal decisions
  * (auto_approve, block) that were never routed to a human reviewer in the
  * first place, so there's no review_decisions concept to exclude here.
- * Newest first — this is a history log, not a work queue.
+ * Defaults to newest-first (a history view) when the caller doesn't specify
+ * a sort.
  */
 export async function getIncidentsByDecision(
   decision: "auto_approve" | "block",
   page = 1,
   pageSize: number = INCIDENT_LIST_PAGE_SIZE,
-  dateRange?: { startTs?: string; endTs?: string },
+  filters?: IncidentFilters,
+  sort: IncidentSort = { field: "created_at", ascending: false },
 ): Promise<IncidentDetailPage> {
-  return fetchIncidentsByDecision(decision, { excludeReviewed: false, ascending: false }, page, pageSize, dateRange);
-}
-
-/** PostgREST returns a to-one embed as an object when it can prove the
- * relationship is unique, otherwise as a single-element array — normalize both. */
-function normalizeOne<T>(value: T | T[] | null): T | null {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value;
+  return fetchIncidentsByDecision(decision, { excludeReviewed: false }, page, pageSize, sort, filters);
 }
 
 /**

@@ -84,7 +84,15 @@ create table if not exists risk_classifications (
     check (output_tokens is null or output_tokens >= 0),
   estimated_cost_usd  numeric
     check (estimated_cost_usd is null or estimated_cost_usd >= 0),
-  created_at          timestamptz not null default now()
+  created_at          timestamptz not null default now(),
+  risk_rank           smallint generated always as (
+    case risk_tier
+      when 'LOW' then 1
+      when 'MEDIUM' then 2
+      when 'HIGH' then 3
+      when 'CRITICAL' then 4
+    end
+  ) stored
 );
 
 comment on table risk_classifications is
@@ -93,6 +101,8 @@ comment on column risk_classifications.confidence is
   '0.0-1.0 self-assessed confidence. Below the threshold in specs/04-investigator.md (0.6 as of that spec), the Gateway API''s fail-closed rule forces the decision to escalate regardless of risk_tier.';
 comment on column risk_classifications.evidence_sources is
   'Array<{tool, query, finding}> from the investigator''s tool calls (specs/04-investigator.md) — never fabricated by the model, only ever populated from real tool call/response pairs by application code.';
+comment on column risk_classifications.risk_rank is
+  'Generated clinical-severity rank (LOW=1..CRITICAL=4) — risk_tier is plain text, so ordering directly on it sorts alphabetically (CRITICAL, HIGH, LOW, MEDIUM), not by severity. Review Queue/Incident Log "sort by risk" (specs/05, specs/09) orders on this column instead.';
 
 create table if not exists incidents (
   id          uuid primary key default gen_random_uuid(),
@@ -136,6 +146,7 @@ comment on column review_decisions.reason_code is
 -- Every join in specs/05 (review queue) and specs/06 (dashboard) traverses
 -- these foreign keys or filters/sorts on these columns — index what's queried.
 create index if not exists idx_risk_classifications_action_id on risk_classifications(action_id);
+create index if not exists idx_risk_classifications_risk_rank on risk_classifications(risk_rank);
 create index if not exists idx_incidents_action_id on incidents(action_id);
 create index if not exists idx_review_decisions_incident_id on review_decisions(incident_id);
 create index if not exists idx_incidents_decision on incidents(decision);
@@ -220,6 +231,69 @@ $$;
 
 comment on function get_incident_counts_by_decision(timestamptz, timestamptz) is
   'Dashboard stat-tile aggregate (specs/06-dashboard-ui.md) — counts incidents by decision in SQL instead of fetching every row and counting client-side, so the query scales with volume rather than being silently truncated by PostgREST''s default max_rows.';
+
+-- Review Queue / Incident Log page fetch (specs/05, specs/09) — an RPC rather than a
+-- plain PostgREST embedded-resource query because ordering agent_actions by an
+-- embedded risk_classifications column fails at the PostgREST layer: verified live,
+-- PGRST118 ("'agent_actions' and 'risk_classifications' do not form a many-to-one or
+-- one-to-one relationship"), even with `!inner` and even though action_id is UNIQUE —
+-- PostgREST determines relationship direction from which table holds the FK, and reads
+-- this as one-to-many for order-by purposes regardless of the unique constraint.
+-- Filtering the same embedded resource works fine (only ordering is affected), so
+-- lib/supabase/queries.ts keeps a plain PostgREST head-count query for totals and
+-- routes only the actual page fetch through this function, which does a real SQL join
+-- with a real ORDER BY and has no such ambiguity.
+create or replace function list_incidents_by_decision(
+  p_decision text,
+  p_exclude_reviewed boolean,
+  p_start_ts timestamptz,
+  p_end_ts timestamptz,
+  p_risk_tier text,
+  p_injection_flag boolean,
+  p_sort_field text,
+  p_sort_ascending boolean,
+  p_limit int,
+  p_offset int
+)
+returns table (
+  agent_action jsonb,
+  incident jsonb,
+  risk_classification jsonb
+)
+language sql
+stable
+as $$
+  select
+    to_jsonb(aa) as agent_action,
+    to_jsonb(i) as incident,
+    to_jsonb(rc) as risk_classification
+  from agent_actions aa
+  join incidents i on i.action_id = aa.id
+  join risk_classifications rc on rc.action_id = aa.id
+  where i.decision = p_decision
+    and (
+      not p_exclude_reviewed
+      or not exists (select 1 from review_decisions rd where rd.incident_id = i.id)
+    )
+    and (p_start_ts is null or aa.created_at >= p_start_ts)
+    and (p_end_ts is null or aa.created_at < p_end_ts)
+    and (p_risk_tier is null or rc.risk_tier = p_risk_tier)
+    and (p_injection_flag is null or rc.injection_flag = p_injection_flag)
+  -- Exactly one of these four expressions is non-null for every row on a given
+  -- call (p_sort_field/p_sort_ascending are constant across the call), so the
+  -- other three are a uniform NULL and don't affect ordering — this avoids
+  -- dynamic SQL for what's really a single order-by choice made once per call.
+  order by
+    case when p_sort_field = 'risk_tier' and p_sort_ascending then rc.risk_rank end asc,
+    case when p_sort_field = 'risk_tier' and not p_sort_ascending then rc.risk_rank end desc,
+    case when p_sort_field = 'created_at' and p_sort_ascending then aa.created_at end asc,
+    case when p_sort_field = 'created_at' and not p_sort_ascending then aa.created_at end desc,
+    aa.id asc
+  limit p_limit offset p_offset;
+$$;
+
+comment on function list_incidents_by_decision(text, boolean, timestamptz, timestamptz, text, boolean, text, boolean, int, int) is
+  'Review Queue / Incident Log paginated fetch (specs/05, specs/09) — real SQL join + ORDER BY, used instead of PostgREST embedded-resource ordering because that fails with PGRST118 for this relationship (see comment above). Total count for pagination still comes from a separate PostgREST head-count query in lib/supabase/queries.ts, which filters correctly on the same embedded resource — only ordering is affected.';
 
 -- ============================================================================
 -- Access control — RLS enabled on every table, no permissive policies by

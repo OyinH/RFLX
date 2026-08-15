@@ -211,6 +211,26 @@ export type Database = {
         Args: { start_ts: string; end_ts: string };
         Returns: { decision: string; count: number }[];
       };
+      // supabase/migrations/0005_list_incidents_rpc.sql — used by
+      // fetchIncidentsByDecision (specs/05, specs/09). Real SQL join + ORDER BY
+      // instead of a PostgREST embedded-resource query: ordering agent_actions
+      // by an embedded risk_classifications column fails with PGRST118 on this
+      // project's live PostgREST instance (verified), even with `!inner`.
+      list_incidents_by_decision: {
+        Args: {
+          p_decision: string;
+          p_exclude_reviewed: boolean;
+          p_start_ts: string | null;
+          p_end_ts: string | null;
+          p_risk_tier: string | null;
+          p_injection_flag: boolean | null;
+          p_sort_field: string;
+          p_sort_ascending: boolean;
+          p_limit: number;
+          p_offset: number;
+        };
+        Returns: { agent_action: Record<string, unknown>; incident: Record<string, unknown>; risk_classification: Record<string, unknown> }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

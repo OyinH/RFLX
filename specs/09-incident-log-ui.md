@@ -10,7 +10,7 @@
 
 ## File
 
-`app/incidents/page.tsx`, `IncidentLogTable.tsx`, `IncidentLogRow.tsx`, `PaginationControls.tsx`.
+`app/incidents/page.tsx`, `IncidentLogTable.tsx`, `IncidentLogRow.tsx`. `PaginationControls.tsx`, `DateRangeFilter.tsx`, and `FilterSortBar.tsx` live at `app/` (not `app/incidents/`) — shared verbatim with `specs/05`'s Review Queue, which has the identical controls.
 
 ## Priority
 
@@ -27,7 +27,7 @@ Paginated identically to `specs/05` (`INCIDENT_LIST_PAGE_SIZE` = 25, `?page=`), 
 ## Workflow
 
 1. Reviewer clicks a "Blocked" or "Auto-approved" stat number on the landing page or dashboard (or "Incidents" in the main nav, which defaults to the Blocked tab).
-2. Page loads incidents for that decision, newest first, with the same risk-tier/injection filters and time/risk sort as the review queue (`IncidentLogTable`, same client-side filter/sort convention as `ReviewQueueTable`).
+2. Page loads incidents for that decision, newest first by default, with the same `?from=`/`?to=`/`?risk=`/`?injection=`/`?sort=`/`?dir=` server-side filter and sort as the review queue (`specs/05`'s Workflow step 2 — same `lib/supabase/queries.ts` code path, `getIncidentsByDecision` instead of `getEscalatedIncidents`, same `list_incidents_by_decision()` RPC for the actual page fetch).
 3. Reviewer clicks a row to expand full detail: payload, reasoning, evidence sources — identical presentation to `specs/05`'s expanded incident view.
 4. That's the whole workflow. No decision to make, no form, no write.
 
@@ -43,6 +43,8 @@ Paginated identically to `specs/05` (`INCIDENT_LIST_PAGE_SIZE` = 25, `?page=`), 
 - **Invalid or missing `?decision=`:** falls back to `block` rather than erroring — a reviewer landing here from the nav link (no query string) should see something meaningful, not a blank/error state.
 - **`?page=` past the last page:** same handling as `specs/05` — a distinct "no incidents on page N" message with a link back to page 1, not the same copy as a genuinely empty decision bucket.
 - **Injection filter on the "Blocked" tab is meaningful; on "Auto-approved" it's always empty.** Per the Policy Engine, an injection-flagged action always routes to `block`, never `auto_approve` — so filtering "Flagged" on the Auto-approved tab correctly returns nothing every time. Not a bug, same reasoning as why "Flagged" returns nothing on the review queue at all (`specs/05`'s incidents never carry `injection_flag = true` either, for the same reason).
+- **`risk` filter on the "Blocked" tab only ever matches `CRITICAL`.** Per the Policy Engine's deterministic rule table, `block` only ever results from `CRITICAL` risk_tier — filtering to `LOW`/`MEDIUM`/`HIGH` on that tab correctly returns nothing every time (verified live). Not a bug, same shape as the injection-filter case above.
+- **A filter combination matches zero incidents:** same handling as `specs/05` — a distinct "no incidents match the current filters" message with a link that clears every filter (keeping the active decision tab), not the same copy as an out-of-range page or a genuinely empty decision bucket.
 
 ## Metric This View Supports
 

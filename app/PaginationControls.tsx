@@ -1,31 +1,36 @@
 import Link from "next/link";
 
 /**
- * Plain server-rendered nav (no client JS needed) — page.tsx is
- * force-dynamic, so a new page number is just a normal navigation that
- * re-runs getEscalatedIncidents() with a different offset.
+ * Shared by the Review Queue and Incident Log (previously two near-identical
+ * per-page copies). Plain server-rendered nav (no client JS needed) — both
+ * pages are force-dynamic, so a new page number is just a normal navigation
+ * that re-runs the query with a different offset.
  *
- * `dateQuery` (e.g. "from=2026-08-13&to=2026-08-14", or "" when unfiltered)
- * carries the active date-range filter along so paging within a narrowed
- * range doesn't silently drop back to the unfiltered queue.
+ * `route` is the page path ("/review-queue" or "/incidents"). `query` is the
+ * query string (no leading `?`) for every OTHER active param (date range,
+ * risk tier, injection flag, sort, and — for the Incident Log — decision
+ * tab), built via lib/ui/incident-query.ts's buildIncidentQuery so paging
+ * never silently drops another active filter.
  */
 export function PaginationControls({
+  route,
+  query,
   page,
   totalPages,
-  dateQuery = "",
 }: {
+  route: string;
+  query: string;
   page: number;
   totalPages: number;
-  dateQuery?: string;
 }) {
   if (totalPages <= 1) return null;
 
-  const hrefForPage = (n: number) => `/review-queue?${dateQuery ? `${dateQuery}&` : ""}page=${n}`;
+  const hrefForPage = (n: number) => `${route}?${query ? `${query}&` : ""}page=${n}`;
 
   return (
     <nav
       className="mt-6 flex items-center justify-between border-t border-border pt-4"
-      aria-label="Review queue pagination"
+      aria-label="Pagination"
     >
       {page > 1 ? (
         <Link
