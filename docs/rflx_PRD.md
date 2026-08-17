@@ -1,6 +1,6 @@
 # rflx.ai — Product Requirements Document
 
-**Date:** August 2026 | **Author:** Oyin | **Status:** Build-Ready | **Version:** 2.6
+**Date:** August 2026 | **Author:** Oyin | **Status:** Build-Ready | **Version:** 2.7
 **Companion doc:** `docs/design.md` covers architecture, API contracts, schema, and evaluation framework. This file covers product strategy and requirements only — what to build and why.
 
 ---
@@ -42,9 +42,11 @@ Healthcare AI is moving from tools that *draft* (notes, summaries) to agents tha
 |---|---|---|---|
 | Injection-pattern catch rate (JAMA-style eval set) | **North Star** | ≥ 90% | **100%** ✅ |
 | False-positive rate on benign action set | Primary | < 10% | **0%** ✅ |
-| P95 guardrail decision latency | Primary | ~13s P95 (P50 ~4.5s) — accepted floor, not a request-handling budget; see note below | **P95 12.9s / P50 4.5s** — meets its own revised target |
+| P95 guardrail decision latency | Primary | ~13s P95 (P50 ~4.5s) — accepted floor, not a request-handling budget; see note below | **P95 7.1s / P50 4.2s** (most recent full run) — comfortably inside its revised target |
 | Every decision has an audit trail entry | Secondary — reliability | 100% | Not yet formally measured — every eval run wrote a Supabase row per case with no drops |
 | Reviewer time-to-decision on escalated actions | Secondary — adoption/usability proxy | < 5 minutes (self-measured during manual walkthrough) | Not yet measured — no manual walkthrough run yet |
+
+Live results for every metric above, not just this table's snapshot, are visible at `/eval` (`specs/10-eval-results-ui.md`) — a real page reading the same eval output this table cites, not a spec-only artifact.
 
 **Latency gap, documented and accepted, not silently missed:** root-caused to the number of sequential reasoning-model round-trips the investigator's tool-calling loop makes (`gpt-5.6-terra` is a genuine reasoning-tier model; each turn costs 2-4+ seconds regardless of what it does), not request-handling or infrastructure overhead. Several changes were tried against this root cause: parallelizing same-turn tool calls (no improvement, 8806ms → 8708ms), removing `get_patient_current_medications` from the agentic loop entirely — fetched eagerly as context instead of behind a tool call, `specs/04-investigator.md`'s Latency Architecture (v3) section — which also measured no real P95 improvement (8708ms → 8542ms, still noise-level) despite being a sound change on its own terms, and two further structural fixes (parallelizing the `risk_classifications`/`incidents` Supabase inserts in `recordDecision`, and overlapping the eager medications lookup with the Prompt Shield call instead of running them sequentially). That last pair moved P50 meaningfully (5519ms → 4497ms, ~18% faster — consistent with removing two sequential round-trips from the common case) but not P95 (11.5s → 12.9s); the slowest cases in the post-fix run were scattered across unrelated action types rather than concentrated in the multi-tool-call cases that dominated the pre-fix tail, consistent with OpenAI-side call latency variance rather than a regression, though a single 100-case run can't fully separate that from a real tail effect.
 
@@ -53,6 +55,8 @@ Healthcare AI is moving from tools that *draft* (notes, summaries) to agents tha
 **A more consequential finding came out of this investigation than the P95 number itself:** two separate eval runs each had one request silently stall for 11-12 minutes, well past the OpenAI client's already-configured 20s timeout, with zero error signal in the logs — a hang below the SDK's own timeout handling (likely DNS/connection-establishment, not response-reading). Fixed with an independent, SDK-agnostic hard timeout (`Promise.race` against a plain JS timer, `lib/investigator/index.ts`'s `withHardTimeout()`) wrapped around every external call in the investigation loop. Verified clean on the next full run — no outliers, slowest case 9.4s. This is a real reliability fix, not a latency one: an occasional unbounded multi-minute hang would have been a far more serious production problem than a consistently-high-but-bounded P95.
 
 The two metrics that actually validate the hypothesis (catch rate, false-positive rate) both clear their targets cleanly and held steady at 100%/0% across every change made during this investigation — real signal, not regressed by any of it.
+
+**Update, most recent full run:** P95 7.1s / P50 4.2s — well inside the revised ~13s/~4.5s target, and better than the 12.9s/4.5s figure the investigation above was measured against. Run-to-run latency varies with OpenAI-side call conditions (noted above as the likely explanation for the earlier run's P95 tail), so this isn't claimed as a further fix — it's evidence the accepted target has real margin, not a number sitting right at the edge of passing.
 
 ---
 
@@ -158,6 +162,8 @@ Secondary to that: workflow lock-in as reviewers build the review queue into the
 | Human-in-the-loop review queue | P0 | Next.js app (API routes + UI), connected to Supabase (Retool as documented fallback) | Required to demonstrate escalation, one of the three possible decisions |
 | Audit & incident log | P0 | Supabase, append-only design | Required for the 100% audit-trail success metric |
 | Incident detection & response dashboard | P1 | Next.js app — incident volume, block/escalation rate, filterable trail | Strengthens the demo narrative but the review queue alone already proves the core loop; can slip a day if the schedule compresses |
+| Read-only incident log | P1 | Next.js app (`specs/09-incident-log-ui.md`) — browse already-decided `auto_approve`/`block` actions with full reasoning and evidence, deep-linked from the dashboard's stat tiles | The dashboard shows aggregate counts; a CISO or reviewer auditing a specific past decision needs to see the individual action and reasoning behind it, not just a number |
+| Eval results UI | P1 | Next.js app (`specs/10-eval-results-ui.md`) — real page showing the guardrail's own Go/No-Go accuracy (catch rate, false-positive rate, latency) against its baseline, sourced from the same eval harness output as §1's Success Metrics table, with CSV/JSON export | rflx's core premise is visibility into what other AI agents are doing; this is that same premise applied to rflx itself — added post-MVP-build after being flagged as a major part of the product's trust story, not an afterthought |
 | Eval harness | P0 | JAMA-derived injection cases + Synthea-derived benign cases, precision/recall reported | Written before implementation by design — the single most load-bearing artifact in the whole build |
 | Observability instrumentation | P1 | OpenTelemetry spans wired to a Microsoft Foundry project — tracing, evaluation, monitoring | Strengthens the operational-maturity story; the guardrail engine and eval suite (both P0) fully prove the hypothesis without it |
 | Reviewer-outcome calibration log | P1 | For every escalated action, structurally capture whether the reviewer's decision *agreed with or overrode* the system's risk classification, plus a reason code/note — not just the existing append-only `review_decisions` record of the raw approve/reject | This is the raw data substrate §3.6's MOAT claim depends on. Capturing it from day one is what makes "taxonomy tuned against real reviewer decisions" a real future capability instead of a retrofit that loses every pre-launch decision. The *analysis/tuning loop* built on top of this log is out of MVP scope — see §6.3 |
@@ -188,6 +194,9 @@ Acceptance: the review queue shows action payload, risk classification, and the 
 
 **US-03** — As a CISO, I want to see aggregate incident trends, so that I can assess whether agentic AI deployment is safe to expand.
 Acceptance: dashboard shows incident volume by type/severity over time, filterable.
+
+**US-04** — As a CISO or clinical informatics lead, I want to see rflx's own accuracy against its stated safety baseline, so that I can trust the guardrail is performing as claimed without asking an engineer to run or interpret the eval suite myself.
+Acceptance: `/eval` shows the current Go/No-Go verdict and all three underlying metrics (catch rate, false-positive rate, latency) with their targets, sourced from the same eval harness run cited elsewhere in this document — no repo access or CLI required.
 
 ### 7.2 Functional Requirements
 | ID | Requirement | Priority |
